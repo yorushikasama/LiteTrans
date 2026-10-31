@@ -1,0 +1,127 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* 深浅色跟随系统:不注册 .dark 类变体,直接用 v4 默认的 prefers-color-scheme */
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.985 0.002 247.839);
+  --foreground: oklch(0.205 0.02 261.5);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.205 0.02 261.5);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.205 0.02 261.5);
+  --primary: oklch(0.546 0.215 262.881);
+  --primary-foreground: oklch(0.985 0.002 247.839);
+  --secondary: oklch(0.967 0.003 264.542);
+  --secondary-foreground: oklch(0.205 0.02 261.5);
+  --muted: oklch(0.967 0.003 264.542);
+  --muted-foreground: oklch(0.551 0.023 264.364);
+  --accent: oklch(0.951 0.014 262.416);
+  --accent-foreground: oklch(0.379 0.146 265.522);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.918 0.008 264.531);
+  --input: oklch(0.918 0.008 264.531);
+  --ring: oklch(0.546 0.215 262.881);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: oklch(0.175 0.014 261.7);
+    --foreground: oklch(0.928 0.006 264.531);
+    --card: oklch(0.23 0.016 262.2);
+    --card-foreground: oklch(0.928 0.006 264.531);
+    --popover: oklch(0.23 0.016 262.2);
+    --popover-foreground: oklch(0.928 0.006 264.531);
+    --primary: oklch(0.62 0.208 265.1);
+    --primary-foreground: oklch(0.985 0.002 247.839);
+    --secondary: oklch(0.294 0.021 262.4);
+    --secondary-foreground: oklch(0.928 0.006 264.531);
+    --muted: oklch(0.294 0.021 262.4);
+    --muted-foreground: oklch(0.709 0.014 261.9);
+    --accent: oklch(0.294 0.021 262.4);
+    --accent-foreground: oklch(0.928 0.006 264.531);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 14%);
+    --ring: oklch(0.62 0.208 265.1);
+  }
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  /* 弹卡窗口透明底,让系统亚克力透出来 */
+  body[data-page="popup"] {
+    background: transparent;
+  }
+}
+
+/* 细滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--muted-foreground) 35%, transparent);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+}
+
+/* 流式输出光标 */
+@keyframes lt-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.lt-cursor {
+  color: var(--primary);
+  animation: lt-blink 1s steps(1) infinite;
+}
+
+/* 弹卡入场动画 */
+@keyframes lt-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lt-pop {
+  animation: lt-pop 0.16s ease-out;
+}

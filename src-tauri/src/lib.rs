@@ -1,0 +1,296 @@
+mod clipboard_flow;
+mod commands;
+mod engine;
+mod input;
+mod lang;
+mod settings;
+mod tts_win;
+
+use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex, RwLock};
+
+use tauri::menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Manager};
+
+use tokio_util::sync::CancellationToken;
+
+use settings::Settings;
+use tts_win::SharedTts;
+
+pub struct AppState {
+    pub settings: RwLock<Settings>,
+    /// 每个窗口同一时刻只允许一个进行中的翻译请求
+    pub cancels: Mutex<HashMap<String, Arc<CancellationToken>>>,
+    /// 弹卡是否钉住(钉住则失焦不隐藏)
+    pub pinned: AtomicBool,
+    /// 首次创建弹卡时暂存的待翻译文本
+    pub pending_popup_text: Mutex<Option<String>>,
+    pub tts: SharedTts,
+}
+
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            show_main(app);
+        }))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![
+            commands::translate,
+            commands::cancel_translate,
+            commands::get_settings,
+            commands::save_settings,
+            commands::get_presets,
+            commands::set_active_profile,
+            commands::test_profile,
+            commands::fetch_models,
+            commands::toggle_pin,
+            commands::take_pending_text,
+            commands::write_clipboard,
+            commands::hide_popup,
+            commands::open_main_with_text,
+            commands::open_main_settings,
+            commands::tts_speak,
+            commands::tts_stop,
+        ])
+        .setup(|app| {
+            let handle = app.handle().clone();
+
+            let settings = Settings::load(&handle);
+            let setup_done = settings.setup_done;
+            app.manage(AppState {
+                settings: RwLock::new(settings),
+                cancels: Mutex::new(HashMap::new()),
+                pinned: AtomicBool::new(false),
+                pending_popup_text: Mutex::new(None),
+                tts: Arc::new(Mutex::new(None)),
+            });
+
+            setup_tray(&handle).map_err(|e| e.to_string())?;
+
+            let hotkey = handle
+                .state::<AppState>()
+                .settings
+                .read()
+                .unwrap()
+                .hotkey
+                .clone();
+            if let Err(e) = register_hotkey(&handle, &hotkey) {
+                eprintln!("[litetrans] {e}");
+                // 热键失败必须让用户看见:打开主窗口并推送通知
+                show_main(&handle);
+                use tauri::Emitter;
+                let _ = handle.emit(
+                    "app-notify",
+                    serde_json::json!({ "message": format!("划词热键 {hotkey} 注册失败:{e}。请在设置中更换热键。") }),
+                );
+            }
+
+            // 启动 30s 后后台预热弹卡窗口,消除首次划词的 1-2s 冷启动
+            let h2 = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                let app = h2.clone();
+                let value = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    if let Err(e) = clipboard_flow::ensure_popup(&value) {
+                        eprintln!("[litetrans] prewarm popup: {e}");
+                    }
+                });
+            });
+
+            // 首次使用(尚未完成配置)时打开主窗口引导
+            if !setup_done {
+                show_main(&handle);
+            }
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            // 主窗口点关闭 = 隐藏到托盘
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+
+pub fn show_main(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
+pub fn register_hotkey(app: &AppHandle, hotkey: &str) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+
+    app.global_shortcut()
+        .unregister_all()
+        .map_err(|e| e.to_string())?;
+    if hotkey.trim().is_empty() {
+        return Ok(());
+    }
+    app.global_shortcut()
+        .on_shortcut(hotkey, |app, _shortcut, event| {
+            if event.state == ShortcutState::Pressed {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = clipboard_flow::capture_selection(&app).await {
+                        eprintln!("[litetrans] {e}");
+                    }
+                });
+            }
+        })
+        .map_err(|e| format!("注册热键 {hotkey} 失败: {e}"))
+}
+
+fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
+    let menu = build_tray_menu(app)?;
+
+    TrayIconBuilder::with_id("tray")
+        .icon(tauri::include_image!("icons/32x32.png"))
+        .tooltip("LiteTrans · AI 划词翻译")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(on_tray_menu_event)
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main(tray.app_handle());
+            }
+        })
+        .build(app)?;
+    Ok(())
+}
+
+/// 配置变化 / 切换后重建托盘菜单
+pub fn rebuild_tray(app: &AppHandle) {
+    let _ = app.remove_tray_by_id("tray");
+    if let Err(e) = setup_tray(app) {
+        eprintln!("[litetrans] rebuild tray: {e}");
+    }
+}
+
+fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    use tauri_plugin_autostart::ManagerExt;
+
+    let (profiles, active_id) = {
+        let state = app.state::<AppState>();
+        let s = state.settings.read().unwrap();
+        (
+            s.profiles.clone(),
+            s.active_profile().map(|p| p.id.clone()).unwrap_or_default(),
+        )
+    };
+
+    let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
+    let clip = MenuItem::with_id(app, "translate_clipboard", "翻译剪贴板内容", true, None::<&str>)?;
+    let conf = MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
+    let is_auto = app.autolaunch().is_enabled().unwrap_or(false);
+    let auto = CheckMenuItem::with_id(app, "autostart", "开机自启", true, is_auto, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+
+    let mut mb = MenuBuilder::new(app).item(&show).item(&clip).separator();
+    if !profiles.is_empty() {
+        for p in &profiles {
+            let label = if p.model.trim().is_empty() {
+                p.name.clone()
+            } else {
+                format!("{}  ·  {}", p.name, p.model.trim())
+            };
+            let item = CheckMenuItem::with_id(
+                app,
+                format!("profile:{}", p.id),
+                label,
+                true,
+                p.id == active_id,
+                None::<&str>,
+            )?;
+            mb = mb.item(&item);
+        }
+        mb = mb.separator();
+    }
+    let menu = mb.item(&conf).item(&auto).separator().item(&quit).build()?;
+    Ok(menu)
+}
+
+fn on_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
+    match event.id().as_ref() {
+        "show" | "settings" => show_main(app),
+        "translate_clipboard" => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                match input::read_clipboard_text() {
+                    Ok(t) if !t.trim().is_empty() => {
+                        let _ = clipboard_flow::show_popup_with_text(&app, t).await;
+                    }
+                    _ => show_main(&app),
+                }
+            });
+        }
+        "autostart" => {
+            use tauri_plugin_autostart::ManagerExt;
+            let al = app.autolaunch();
+            let enabled = if al.is_enabled().unwrap_or(false) {
+                let _ = al.disable();
+                false
+            } else {
+                let _ = al.enable();
+                true
+            };
+            // 同步内存与磁盘,并刷新托盘勾选态
+            let app2 = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let state = app2.state::<AppState>();
+                if let Ok(mut s) = state.settings.write() {
+                    s.autostart = enabled;
+                    let _ = s.save(&app2);
+                }
+                let a = app2.clone();
+                let b = a.clone();
+                let _ = a.run_on_main_thread(move || rebuild_tray(&b));
+            });
+        }
+        "quit" => app.exit(0),
+        other => {
+            if let Some(id) = other.strip_prefix("profile:") {
+                let id = id.to_string();
+                let app2 = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let state = app2.state::<AppState>();
+                    let ok = {
+                        let mut s = match state.settings.write() {
+                            Ok(s) => s,
+                            Err(_) => return,
+                        };
+                        if s.profiles.iter().any(|p| p.id == id) {
+                            s.active_id = id;
+                            s.save(&app2).is_ok()
+                        } else {
+                            false
+                        }
+                    };
+                    if ok {
+                        let a = app2.clone();
+                        let b = a.clone();
+                        let _ = a.run_on_main_thread(move || rebuild_tray(&b));
+                    }
+                });
+            }
+        }
+    }
+}

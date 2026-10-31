@@ -22,30 +22,139 @@ pub struct Preset {
 }
 
 pub const PRESETS: &[Preset] = &[
-    Preset { id: "deepseek", name: "DeepSeek", base_url: "https://api.deepseek.com/v1", model: "deepseek-chat", need_key: true, protocol: "openai",
-        models: &["deepseek-chat", "deepseek-reasoner"] },
-    Preset { id: "zhipu", name: "智谱 GLM", base_url: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash", need_key: true, protocol: "openai",
-        models: &["glm-4-flash", "glm-4-air", "glm-4-plus", "glm-4.5", "glm-4.6"] },
-    Preset { id: "moonshot", name: "Kimi", base_url: "https://api.moonshot.cn/v1", model: "moonshot-v1-8k", need_key: true, protocol: "openai",
-        models: &["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k", "kimi-k2-0711-preview", "kimi-k2-turbo-preview"] },
-    Preset { id: "qwen", name: "通义千问", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus", need_key: true, protocol: "openai",
-        models: &["qwen-turbo", "qwen-plus", "qwen-max", "qwen-plus-latest"] },
-    Preset { id: "sensenova", name: "商汤 日日新", base_url: "https://token.sensenova.cn/v1", model: "SenseChat-5", need_key: true, protocol: "openai",
-        models: &["SenseChat-5"] },
-    Preset { id: "siliconflow", name: "硅基流动", base_url: "https://api.siliconflow.cn/v1", model: "Qwen/Qwen2.5-7B-Instruct", need_key: true, protocol: "openai",
-        models: &["Qwen/Qwen2.5-7B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "deepseek-ai/DeepSeek-V3", "deepseek-ai/DeepSeek-R1"] },
-    Preset { id: "openai", name: "OpenAI", base_url: "https://api.openai.com/v1", model: "gpt-4o-mini", need_key: true, protocol: "openai",
-        models: &["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"] },
-    Preset { id: "anthropic", name: "Claude(Anthropic)", base_url: "https://api.anthropic.com", model: "claude-sonnet-4-5", need_key: true, protocol: "anthropic",
-        models: &["claude-sonnet-4-5", "claude-opus-4-1", "claude-3-5-haiku-latest"] },
-    Preset { id: "gemini", name: "Gemini(Google)", base_url: "https://generativelanguage.googleapis.com", model: "gemini-2.0-flash", need_key: true, protocol: "gemini",
-        models: &["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"] },
-    Preset { id: "openrouter", name: "OpenRouter", base_url: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", need_key: true, protocol: "openai",
-        models: &["openai/gpt-4o-mini", "deepseek/deepseek-chat", "anthropic/claude-sonnet-4.5"] },
-    Preset { id: "ollama", name: "Ollama(本地)", base_url: "http://localhost:11434/v1", model: "qwen2.5:7b", need_key: false, protocol: "openai",
-        models: &["qwen2.5:7b", "qwen2.5:14b", "llama3.1:8b", "deepseek-r1:7b"] },
-    Preset { id: "custom", name: "自定义", base_url: "", model: "", need_key: true, protocol: "openai",
-        models: &[] },
+    Preset {
+        id: "deepseek",
+        name: "DeepSeek",
+        base_url: "https://api.deepseek.com/v1",
+        model: "deepseek-chat",
+        need_key: true,
+        protocol: "openai",
+        models: &["deepseek-chat", "deepseek-reasoner"],
+    },
+    Preset {
+        id: "zhipu",
+        name: "智谱 GLM",
+        base_url: "https://open.bigmodel.cn/api/paas/v4",
+        model: "glm-4-flash",
+        need_key: true,
+        protocol: "openai",
+        models: &[
+            "glm-4-flash",
+            "glm-4-air",
+            "glm-4-plus",
+            "glm-4.5",
+            "glm-4.6",
+        ],
+    },
+    Preset {
+        id: "moonshot",
+        name: "Kimi",
+        base_url: "https://api.moonshot.cn/v1",
+        model: "moonshot-v1-8k",
+        need_key: true,
+        protocol: "openai",
+        models: &[
+            "moonshot-v1-8k",
+            "moonshot-v1-32k",
+            "moonshot-v1-128k",
+            "kimi-k2-0711-preview",
+            "kimi-k2-turbo-preview",
+        ],
+    },
+    Preset {
+        id: "qwen",
+        name: "通义千问",
+        base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        model: "qwen-plus",
+        need_key: true,
+        protocol: "openai",
+        models: &["qwen-turbo", "qwen-plus", "qwen-max", "qwen-plus-latest"],
+    },
+    Preset {
+        id: "sensenova",
+        name: "商汤 日日新",
+        base_url: "https://token.sensenova.cn/v1",
+        model: "SenseChat-5",
+        need_key: true,
+        protocol: "openai",
+        models: &["SenseChat-5"],
+    },
+    Preset {
+        id: "siliconflow",
+        name: "硅基流动",
+        base_url: "https://api.siliconflow.cn/v1",
+        model: "Qwen/Qwen2.5-7B-Instruct",
+        need_key: true,
+        protocol: "openai",
+        models: &[
+            "Qwen/Qwen2.5-7B-Instruct",
+            "Qwen/Qwen2.5-72B-Instruct",
+            "deepseek-ai/DeepSeek-V3",
+            "deepseek-ai/DeepSeek-R1",
+        ],
+    },
+    Preset {
+        id: "openai",
+        name: "OpenAI",
+        base_url: "https://api.openai.com/v1",
+        model: "gpt-4o-mini",
+        need_key: true,
+        protocol: "openai",
+        models: &["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"],
+    },
+    Preset {
+        id: "anthropic",
+        name: "Claude(Anthropic)",
+        base_url: "https://api.anthropic.com",
+        model: "claude-sonnet-4-5",
+        need_key: true,
+        protocol: "anthropic",
+        models: &[
+            "claude-sonnet-4-5",
+            "claude-opus-4-1",
+            "claude-3-5-haiku-latest",
+        ],
+    },
+    Preset {
+        id: "gemini",
+        name: "Gemini(Google)",
+        base_url: "https://generativelanguage.googleapis.com",
+        model: "gemini-2.0-flash",
+        need_key: true,
+        protocol: "gemini",
+        models: &["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+    },
+    Preset {
+        id: "openrouter",
+        name: "OpenRouter",
+        base_url: "https://openrouter.ai/api/v1",
+        model: "openai/gpt-4o-mini",
+        need_key: true,
+        protocol: "openai",
+        models: &[
+            "openai/gpt-4o-mini",
+            "deepseek/deepseek-chat",
+            "anthropic/claude-sonnet-4.5",
+        ],
+    },
+    Preset {
+        id: "ollama",
+        name: "Ollama(本地)",
+        base_url: "http://localhost:11434/v1",
+        model: "qwen2.5:7b",
+        need_key: false,
+        protocol: "openai",
+        models: &["qwen2.5:7b", "qwen2.5:14b", "llama3.1:8b", "deepseek-r1:7b"],
+    },
+    Preset {
+        id: "custom",
+        name: "自定义",
+        base_url: "",
+        model: "",
+        need_key: true,
+        protocol: "openai",
+        models: &[],
+    },
 ];
 
 pub fn preset_by_id(id: &str) -> Option<&'static Preset> {
@@ -198,7 +307,10 @@ fn keyring_delete(account: &str) {
 
 impl Settings {
     pub fn config_path(app: &tauri::AppHandle) -> Option<PathBuf> {
-        app.path().app_config_dir().ok().map(|d| d.join("config.json"))
+        app.path()
+            .app_config_dir()
+            .ok()
+            .map(|d| d.join("config.json"))
     }
 
     pub fn load(app: &tauri::AppHandle) -> Self {
@@ -210,42 +322,7 @@ impl Settings {
                 }
                 // 旧版只有 targetLang 一个方向字段:迁移为 transMode + source/target
                 if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&content) {
-                    if raw.get("transMode").is_none() {
-                        let old = raw
-                            .get("targetLang")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("auto");
-                        match old {
-                            "auto" | "" => {
-                                s.trans_mode = "auto".into();
-                            }
-                            "en" => {
-                                s.trans_mode = "custom".into();
-                                s.source_lang = "auto".into();
-                                s.target_lang = "English".into();
-                            }
-                            "ja" => {
-                                s.trans_mode = "custom".into();
-                                s.source_lang = "auto".into();
-                                s.target_lang = "Japanese".into();
-                            }
-                            "ko" => {
-                                s.trans_mode = "custom".into();
-                                s.source_lang = "auto".into();
-                                s.target_lang = "Korean".into();
-                            }
-                            "zh" => {
-                                s.trans_mode = "custom".into();
-                                s.source_lang = "auto".into();
-                                s.target_lang = "Simplified Chinese".into();
-                            }
-                            other => {
-                                s.trans_mode = "custom".into();
-                                s.source_lang = "auto".into();
-                                s.target_lang = other.to_string();
-                            }
-                        }
-                    }
+                    s.apply_legacy_direction(&raw);
                 }
             }
         }
@@ -273,7 +350,11 @@ impl Settings {
                     })
                     .unwrap_or_default(),
             };
-            p.name = if p.name.is_empty() { "默认配置".into() } else { p.name };
+            p.name = if p.name.is_empty() {
+                "默认配置".into()
+            } else {
+                p.name
+            };
             s.active_id = p.id.clone();
             s.profiles.push(p);
         }
@@ -324,6 +405,47 @@ impl Settings {
         fs::write(&path, content).map_err(|e| e.to_string())
     }
 
+    /// 旧版配置迁移:仅 targetLang 单字段时推导 transMode/sourceLang(纯函数,便于测试)
+    pub(crate) fn apply_legacy_direction(&mut self, raw: &serde_json::Value) {
+        if raw.get("transMode").is_some() {
+            return;
+        }
+        let old = raw
+            .get("targetLang")
+            .and_then(|v| v.as_str())
+            .unwrap_or("auto");
+        match old {
+            "auto" | "" => {
+                self.trans_mode = "auto".into();
+            }
+            "en" => {
+                self.trans_mode = "custom".into();
+                self.source_lang = "auto".into();
+                self.target_lang = "English".into();
+            }
+            "ja" => {
+                self.trans_mode = "custom".into();
+                self.source_lang = "auto".into();
+                self.target_lang = "Japanese".into();
+            }
+            "ko" => {
+                self.trans_mode = "custom".into();
+                self.source_lang = "auto".into();
+                self.target_lang = "Korean".into();
+            }
+            "zh" => {
+                self.trans_mode = "custom".into();
+                self.source_lang = "auto".into();
+                self.target_lang = "Simplified Chinese".into();
+            }
+            other => {
+                self.trans_mode = "custom".into();
+                self.source_lang = "auto".into();
+                self.target_lang = other.to_string();
+            }
+        }
+    }
+
     pub fn active_profile(&self) -> Option<&Profile> {
         self.profiles
             .iter()
@@ -335,5 +457,53 @@ impl Settings {
         self.active_profile()
             .map(|p| p.has_credentials())
             .unwrap_or(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_auto_target_maps_to_smart_mode() {
+        let raw = serde_json::json!({ "targetLang": "auto" });
+        let mut s = Settings::default();
+        s.apply_legacy_direction(&raw);
+        assert_eq!(s.trans_mode, "auto");
+    }
+
+    #[test]
+    fn legacy_code_target_maps_to_custom() {
+        for (code, name) in [
+            ("en", "English"),
+            ("ja", "Japanese"),
+            ("ko", "Korean"),
+            ("zh", "Simplified Chinese"),
+        ] {
+            let raw = serde_json::json!({ "targetLang": code });
+            let mut s = Settings::default();
+            s.apply_legacy_direction(&raw);
+            assert_eq!(s.trans_mode, "custom");
+            assert_eq!(s.source_lang, "auto");
+            assert_eq!(s.target_lang, name);
+        }
+    }
+
+    #[test]
+    fn legacy_language_name_keeps_verbatim() {
+        let raw = serde_json::json!({ "targetLang": "French" });
+        let mut s = Settings::default();
+        s.apply_legacy_direction(&raw);
+        assert_eq!(s.trans_mode, "custom");
+        assert_eq!(s.target_lang, "French");
+    }
+
+    #[test]
+    fn new_config_with_trans_mode_not_migrated() {
+        let raw = serde_json::json!({ "transMode": "auto", "targetLang": "French" });
+        let mut s = Settings::default();
+        s.apply_legacy_direction(&raw);
+        assert_eq!(s.trans_mode, "auto");
+        assert_eq!(s.target_lang, "Simplified Chinese");
     }
 }

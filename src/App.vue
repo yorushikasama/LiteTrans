@@ -376,25 +376,18 @@ function setTemperature(v: number | number[]) {
   <div class="h-screen">
     <Toaster theme="system" position="top-center" />
     <Tabs v-model="tab" class="flex h-full flex-col gap-0">
-      <header
-        class="flex items-center justify-between border-b bg-card px-4 py-2.5 select-none"
-      >
+      <header class="flex items-center justify-between border-b bg-card px-4 py-2.5 select-none">
         <div class="flex items-center gap-2">
           <span
             class="flex size-6.5 items-center justify-center rounded-[7px] bg-gradient-to-br from-indigo-500 to-blue-600 text-[13px] font-bold text-white"
-          >译</span>
+            >译</span
+          >
           <span class="text-sm font-semibold tracking-wide">LiteTrans</span>
         </div>
         <TabsList>
-          <TabsTrigger value="translate">
-            <Languages class="size-4" />翻译
-          </TabsTrigger>
-          <TabsTrigger value="history">
-            <History class="size-4" />历史
-          </TabsTrigger>
-          <TabsTrigger value="settings">
-            <Settings2 class="size-4" />设置
-          </TabsTrigger>
+          <TabsTrigger value="translate"> <Languages class="size-4" />翻译 </TabsTrigger>
+          <TabsTrigger value="history"> <History class="size-4" />历史 </TabsTrigger>
+          <TabsTrigger value="settings"> <Settings2 class="size-4" />设置 </TabsTrigger>
         </TabsList>
       </header>
 
@@ -414,7 +407,8 @@ function setTemperature(v: number | number[]) {
             <span class="text-xs text-muted-foreground">
               Ctrl+Enter 翻译 · 划词按 {{ settings.hotkey || "Alt+Q" }}
               <template v-if="activeProfile">
-                · 当前:{{ activeProfile.name }}{{ activeProfile.model ? ` · ${activeProfile.model}` : "" }}
+                · 当前:{{ activeProfile.name
+                }}{{ activeProfile.model ? ` · ${activeProfile.model}` : "" }}
               </template>
             </span>
           </div>
@@ -436,7 +430,12 @@ function setTemperature(v: number | number[]) {
               <Square />
               停止
             </Button>
-            <Button variant="ghost" size="sm" :disabled="!source.trim() && !result" @click="clearAll">
+            <Button
+              variant="ghost"
+              size="sm"
+              :disabled="!source.trim() && !result"
+              @click="clearAll"
+            >
               <Eraser />
               清空
             </Button>
@@ -478,12 +477,18 @@ function setTemperature(v: number | number[]) {
             </span>
             <Button
               v-if="historyItems.length"
-              variant="outline" size="sm" class="h-7 text-xs"
+              variant="outline"
+              size="sm"
+              class="h-7 text-xs"
               @click="clearHistory"
-            >清空历史</Button>
+              >清空历史</Button
+            >
           </div>
 
-          <div v-if="!historyItems.length" class="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <div
+            v-if="!historyItems.length"
+            class="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground"
+          >
             还没有翻译记录
           </div>
           <div v-else class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
@@ -491,11 +496,16 @@ function setTemperature(v: number | number[]) {
               v-for="(h, i) in historyItems"
               :key="`${h.ts}-${i}`"
               class="rounded-xl border bg-card p-3 text-left transition-colors hover:border-primary/50"
-              @click="source = h.source; tab = 'translate'"
+              @click="
+                source = h.source;
+                tab = 'translate';
+              "
             >
               <div class="flex items-center gap-2 text-[11px] text-muted-foreground">
                 <span>{{ fmtTime(h.ts) }}</span>
-                <span class="rounded border border-primary/40 px-1.5 text-primary">{{ h.direction }}</span>
+                <span class="rounded border border-primary/40 px-1.5 text-primary">{{
+                  h.direction
+                }}</span>
                 <span>{{ h.profile }}</span>
                 <span v-if="h.dict" class="text-primary">词典</span>
               </div>
@@ -526,7 +536,9 @@ function setTemperature(v: number | number[]) {
           >
             <div class="flex items-center gap-2.5">
               <span class="text-sm font-semibold">{{ p.name }}</span>
-              <span class="rounded border border-primary/50 px-1.5 text-[11px] leading-4 text-primary">
+              <span
+                class="rounded border border-primary/50 px-1.5 text-[11px] leading-4 text-primary"
+              >
                 {{ protocolShort(p.protocol) }}
               </span>
               <span v-if="p.model" class="text-xs text-muted-foreground">{{ p.model }}</span>
@@ -538,21 +550,33 @@ function setTemperature(v: number | number[]) {
             <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
               <Button
                 v-if="p.id !== settings.activeId"
-                variant="outline" size="sm" class="h-7 px-3 text-xs"
+                variant="outline"
+                size="sm"
+                class="h-7 px-3 text-xs"
                 @click="activateProfile(p.id)"
-              >启用</Button>
-              <Button variant="outline" size="sm" class="h-7 px-3 text-xs" @click="editProfile(p)">编辑</Button>
-              <Button variant="outline" size="sm" class="h-7 px-3 text-xs" @click="testProfile(p)">测试</Button>
+                >启用</Button
+              >
+              <Button variant="outline" size="sm" class="h-7 px-3 text-xs" @click="editProfile(p)"
+                >编辑</Button
+              >
+              <Button variant="outline" size="sm" class="h-7 px-3 text-xs" @click="testProfile(p)"
+                >测试</Button
+              >
               <Button
-                variant="outline" size="sm"
+                variant="outline"
+                size="sm"
                 class="h-7 px-3 text-xs text-destructive hover:text-destructive"
                 @click="askDelete(p)"
-              >删除</Button>
+                >删除</Button
+              >
               <span
                 v-if="testMsg[p.id]"
                 class="text-xs"
-                :class="testMsg[p.id].startsWith('连接正常') ? 'text-emerald-500' : 'text-destructive'"
-              >{{ testMsg[p.id] }}</span>
+                :class="
+                  testMsg[p.id].startsWith('连接正常') ? 'text-emerald-500' : 'text-destructive'
+                "
+                >{{ testMsg[p.id] }}</span
+              >
             </div>
           </div>
 
@@ -570,9 +594,13 @@ function setTemperature(v: number | number[]) {
               <div class="space-y-1.5">
                 <Label class="text-xs text-muted-foreground">服务商预设</Label>
                 <Select v-model="editing.provider" @update:model-value="applyPreset">
-                  <SelectTrigger class="w-full"><SelectValue placeholder="选择服务商" /></SelectTrigger>
+                  <SelectTrigger class="w-full"
+                    ><SelectValue placeholder="选择服务商"
+                  /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem v-for="p in presets" :key="p.id" :value="p.id">{{ p.name }}</SelectItem>
+                    <SelectItem v-for="p in presets" :key="p.id" :value="p.id">{{
+                      p.name
+                    }}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -581,7 +609,9 @@ function setTemperature(v: number | number[]) {
                 <Select v-model="editing.protocol">
                   <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem v-for="x in PROTOCOLS" :key="x.value" :value="x.value">{{ x.label }}</SelectItem>
+                    <SelectItem v-for="x in PROTOCOLS" :key="x.value" :value="x.value">{{
+                      x.label
+                    }}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -592,7 +622,9 @@ function setTemperature(v: number | number[]) {
               <div v-if="urlHint" class="text-[11px] text-muted-foreground">{{ urlHint }}</div>
             </div>
             <div class="space-y-1.5">
-              <Label class="text-xs text-muted-foreground">模型(可输入,或从候选/在线列表选择)</Label>
+              <Label class="text-xs text-muted-foreground"
+                >模型(可输入,或从候选/在线列表选择)</Label
+              >
               <div class="flex items-start gap-2">
                 <div class="min-w-0 flex-1">
                   <ModelCombobox
@@ -601,7 +633,13 @@ function setTemperature(v: number | number[]) {
                     placeholder="deepseek-chat"
                   />
                 </div>
-                <Button variant="outline" size="sm" class="h-9 shrink-0 text-xs" :disabled="modelLoading" @click="fetchModels">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="h-9 shrink-0 text-xs"
+                  :disabled="modelLoading"
+                  @click="fetchModels"
+                >
                   <Loader2 v-if="modelLoading" class="animate-spin" />
                   {{ modelLoading ? "获取中…" : "在线获取" }}
                 </Button>
@@ -613,7 +651,12 @@ function setTemperature(v: number | number[]) {
             </div>
             <div v-if="editing.provider !== 'ollama'" class="space-y-1.5">
               <Label class="text-xs text-muted-foreground">API Key</Label>
-              <Input v-model="editing.apiKey" type="password" placeholder="sk-…" autocomplete="off" />
+              <Input
+                v-model="editing.apiKey"
+                type="password"
+                placeholder="sk-…"
+                autocomplete="off"
+              />
             </div>
             <div class="space-y-1.5">
               <Label class="text-xs text-muted-foreground">
@@ -621,7 +664,9 @@ function setTemperature(v: number | number[]) {
               </Label>
               <Slider
                 :model-value="[editing.temperature]"
-                :min="0" :max="2" :step="0.1"
+                :min="0"
+                :max="2"
+                :step="0.1"
                 class="w-64"
                 @update:model-value="setTemperature"
               />
@@ -636,16 +681,28 @@ function setTemperature(v: number | number[]) {
             <Button variant="outline" @click="newProfile"><Plus />新增配置</Button>
           </div>
 
-          <h2 class="mt-2 text-[13px] font-semibold tracking-wide text-muted-foreground">通用设置</h2>
+          <h2 class="mt-2 text-[13px] font-semibold tracking-wide text-muted-foreground">
+            通用设置
+          </h2>
 
           <div class="space-y-1.5">
             <Label class="text-xs text-muted-foreground">划词热键</Label>
-            <Input v-model="settings.hotkey" class="max-w-60" placeholder="如 alt+q / ctrl+shift+t / f9" />
+            <Input
+              v-model="settings.hotkey"
+              class="max-w-60"
+              placeholder="如 alt+q / ctrl+shift+t / f9"
+            />
           </div>
 
           <div class="space-y-1.5">
-            <Label class="text-xs text-muted-foreground">截图翻译热键(框选屏幕区域识别并翻译)</Label>
-            <Input v-model="settings.captureHotkey" class="max-w-60" placeholder="如 alt+x / ctrl+shift+s" />
+            <Label class="text-xs text-muted-foreground"
+              >截图翻译热键(框选屏幕区域识别并翻译)</Label
+            >
+            <Input
+              v-model="settings.captureHotkey"
+              class="max-w-60"
+              placeholder="如 alt+x / ctrl+shift+s"
+            />
           </div>
 
           <div class="flex items-center gap-2.5">
@@ -705,7 +762,8 @@ function setTemperature(v: number | number[]) {
           <AlertDialogAction
             :class="cn('bg-destructive text-white hover:bg-destructive/90')"
             @click="confirmDeleteNow"
-          >删除</AlertDialogAction>
+            >删除</AlertDialogAction
+          >
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

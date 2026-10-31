@@ -34,9 +34,7 @@ const prevActiveId = ref("");
 const autoCopy = ref(true);
 const cardKey = ref(0);
 
-const isConfigError = computed(() =>
-  /API Key|配置|设置|热键/.test(errorMsg.value),
-);
+const isConfigError = computed(() => /API Key|配置|设置|热键/.test(errorMsg.value));
 
 function composeLangInfo(detected?: string, target?: string, dict?: boolean): string {
   if (dict) return "词典查询";
@@ -189,7 +187,8 @@ async function openSettings() {
         <span class="text-xs text-muted-foreground">{{ langInfo || "翻译" }}</span>
         <span class="flex-1"></span>
         <Button
-          variant="ghost" size="icon"
+          variant="ghost"
+          size="icon"
           class="size-6 rounded-md"
           :class="pinned && 'text-primary'"
           :title="pinned ? '取消钉住' : '钉住(失焦不隐藏)'"
@@ -200,24 +199,46 @@ async function openSettings() {
         </Button>
         <Button
           v-if="source && (status === 'done' || status === 'error')"
-          variant="ghost" size="icon" class="size-6 rounded-md" title="重新翻译"
+          variant="ghost"
+          size="icon"
+          class="size-6 rounded-md"
+          title="重新翻译"
           @click="start(source)"
         >
           <RotateCcw />
         </Button>
-        <Button variant="ghost" size="icon" class="size-6 rounded-md" title="在主窗口中打开" @click="openMain">
+        <Button
+          variant="ghost"
+          size="icon"
+          class="size-6 rounded-md"
+          title="在主窗口中打开"
+          @click="openMain"
+        >
           <Maximize2 />
         </Button>
-        <Button variant="ghost" size="icon" class="size-6 rounded-md" title="关闭 (Esc)" @click="invoke('hide_popup')">
+        <Button
+          variant="ghost"
+          size="icon"
+          class="size-6 rounded-md"
+          title="关闭 (Esc)"
+          @click="invoke('hide_popup')"
+        >
           <X />
         </Button>
       </div>
 
-      <div class="line-clamp-3 border-b pb-2 leading-5 text-muted-foreground" :title="source" style="font-size: 12px">
+      <div
+        class="line-clamp-3 border-b pb-2 leading-5 text-muted-foreground"
+        :title="source"
+        style="font-size: 12px"
+      >
         {{ source }}
       </div>
 
-      <div ref="resultBox" class="min-h-0 flex-1 overflow-y-auto pt-2 leading-relaxed whitespace-pre-wrap text-sm">
+      <div
+        ref="resultBox"
+        class="min-h-0 flex-1 overflow-y-auto pt-2 leading-relaxed whitespace-pre-wrap text-sm"
+      >
         <div v-if="status === 'error'" class="text-destructive text-xs">
           {{ errorMsg }}
           <div v-if="isConfigError" class="mt-2">
@@ -231,11 +252,23 @@ async function openSettings() {
       </div>
 
       <div class="flex items-center gap-1 pt-1.5">
-        <Button variant="ghost" size="sm" class="h-6 px-2 text-xs" :disabled="!result" @click="copy">
+        <Button
+          variant="ghost"
+          size="sm"
+          class="h-6 px-2 text-xs"
+          :disabled="!result"
+          @click="copy"
+        >
           <Copy class="size-3.5" />
           {{ copied ? "已复制" : "复制" }}
         </Button>
-        <Button variant="ghost" size="sm" class="h-6 px-2 text-xs" :disabled="!result && !source" @click="speak">
+        <Button
+          variant="ghost"
+          size="sm"
+          class="h-6 px-2 text-xs"
+          :disabled="!result && !source"
+          @click="speak"
+        >
           <Volume2 class="size-3.5" />
           朗读
         </Button>
@@ -251,7 +284,10 @@ async function openSettings() {
             <SelectItem v-for="p in profiles" :key="p.id" :value="p.id">{{ p.name }}</SelectItem>
           </SelectContent>
         </Select>
-        <span v-if="status === 'streaming' || status === 'loading'" class="text-[11px] text-muted-foreground">
+        <span
+          v-if="status === 'streaming' || status === 'loading'"
+          class="text-[11px] text-muted-foreground"
+        >
           生成中
         </span>
       </div>

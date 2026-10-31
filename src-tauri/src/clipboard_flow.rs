@@ -1,4 +1,6 @@
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+};
 
 use crate::input;
 use crate::AppState;
@@ -31,7 +33,12 @@ pub async fn show_popup_with_text(app: &AppHandle, text: String) -> Result<(), S
 
 /// 在光标附近显示弹卡但只展示错误信息(如 OCR 无结果)
 pub async fn show_popup_with_error(app: &AppHandle, message: String) -> Result<(), String> {
-    show_popup_payload(app, serde_json::json!({ "message": message }), "translate-error").await
+    show_popup_payload(
+        app,
+        serde_json::json!({ "message": message }),
+        "translate-error",
+    )
+    .await
 }
 
 async fn show_popup_payload(
@@ -45,8 +52,16 @@ async fn show_popup_payload(
     let (cx, cy) = input::cursor_pos();
     let (l, t, r, b) = input::work_area_at(cx, cy);
     let size = win.outer_size().unwrap_or_default();
-    let w = if size.width > 0 { size.width as f64 } else { 420.0 };
-    let h = if size.height > 0 { size.height as f64 } else { 330.0 };
+    let w = if size.width > 0 {
+        size.width as f64
+    } else {
+        420.0
+    };
+    let h = if size.height > 0 {
+        size.height as f64
+    } else {
+        330.0
+    };
     let mut px = cx as f64 + 16.0;
     let mut py = cy as f64 + 16.0;
     if px + w > r as f64 {
@@ -68,16 +83,21 @@ async fn show_popup_payload(
 
     if existed {
         // 弹卡页面已就绪,直接发事件
-        app.emit_to("popup", event, payload).map_err(|e| e.to_string())?;
+        app.emit_to("popup", event, payload)
+            .map_err(|e| e.to_string())?;
     } else {
         // 首次创建:页面尚未加载完成,由前端挂载后主动取
         let state = app.state::<AppState>();
         if event == "do-translate" {
-            *state.pending_popup_text.lock().unwrap() =
-                payload.get("text").and_then(|t| t.as_str()).map(String::from);
+            *state.pending_popup_text.lock().unwrap() = payload
+                .get("text")
+                .and_then(|t| t.as_str())
+                .map(String::from);
         } else {
-            *state.pending_popup_error.lock().unwrap() =
-                payload.get("message").and_then(|t| t.as_str()).map(String::from);
+            *state.pending_popup_error.lock().unwrap() = payload
+                .get("message")
+                .and_then(|t| t.as_str())
+                .map(String::from);
         }
     }
     Ok(())

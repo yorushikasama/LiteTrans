@@ -6,8 +6,26 @@ export function installTauriMock() {
 
   const settings = {
     profiles: [
-      { id: "p1", name: "DeepSeek 官方", provider: "deepseek", protocol: "openai", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", temperature: 0.3, apiKey: "sk-mock" },
-      { id: "p2", name: "商汤 日日新", provider: "sensenova", protocol: "openai", baseUrl: "https://token.sensenova.cn/v1", model: "SenseChat-5", temperature: 0.3, apiKey: "" },
+      {
+        id: "p1",
+        name: "DeepSeek 官方",
+        provider: "deepseek",
+        protocol: "openai",
+        baseUrl: "https://api.deepseek.com/v1",
+        model: "deepseek-chat",
+        temperature: 0.3,
+        apiKey: "sk-mock",
+      },
+      {
+        id: "p2",
+        name: "商汤 日日新",
+        provider: "sensenova",
+        protocol: "openai",
+        baseUrl: "https://token.sensenova.cn/v1",
+        model: "SenseChat-5",
+        temperature: 0.3,
+        apiKey: "",
+      },
     ],
     activeId: "p1",
     transMode: "custom",
@@ -23,9 +41,33 @@ export function installTauriMock() {
     setupDone: true,
   };
   const presets = [
-    { id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", needKey: true, protocol: "openai", models: ["deepseek-chat", "deepseek-reasoner"] },
-    { id: "sensenova", name: "商汤 日日新", baseUrl: "https://token.sensenova.cn/v1", model: "SenseChat-5", needKey: true, protocol: "openai", models: ["SenseChat-5"] },
-    { id: "custom", name: "自定义", baseUrl: "", model: "", needKey: true, protocol: "openai", models: [] },
+    {
+      id: "deepseek",
+      name: "DeepSeek",
+      baseUrl: "https://api.deepseek.com/v1",
+      model: "deepseek-chat",
+      needKey: true,
+      protocol: "openai",
+      models: ["deepseek-chat", "deepseek-reasoner"],
+    },
+    {
+      id: "sensenova",
+      name: "商汤 日日新",
+      baseUrl: "https://token.sensenova.cn/v1",
+      model: "SenseChat-5",
+      needKey: true,
+      protocol: "openai",
+      models: ["SenseChat-5"],
+    },
+    {
+      id: "custom",
+      name: "自定义",
+      baseUrl: "",
+      model: "",
+      needKey: true,
+      protocol: "openai",
+      models: [],
+    },
   ];
 
   w.__TAURI_INTERNALS__ = {
@@ -48,7 +90,14 @@ export function installTauriMock() {
           return Promise.resolve("连接正常 · 123 ms(mock)");
         case "get_history":
           return Promise.resolve([
-            { ts: Math.floor(Date.now() / 1000), source: "Hello, LiteTrans!", result: "你好,LiteTrans!", direction: "英文 → 中文", dict: false, profile: "DeepSeek 官方" },
+            {
+              ts: Math.floor(Date.now() / 1000),
+              source: "Hello, LiteTrans!",
+              result: "你好,LiteTrans!",
+              direction: "英文 → 中文",
+              dict: false,
+              profile: "DeepSeek 官方",
+            },
           ]);
         case "translate":
           return Promise.resolve(null);

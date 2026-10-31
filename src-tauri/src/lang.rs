@@ -99,3 +99,53 @@ pub fn tts_lang_prefix(text: &str) -> &'static str {
         _ => "en",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classify_by_script() {
+        assert_eq!(classify("你好,世界"), "zh");
+        assert_eq!(classify("Hello, world!"), "en");
+        assert_eq!(classify("こんにちは世界"), "ja");
+        assert_eq!(classify("안녕하세요"), "ko");
+    }
+
+    #[test]
+    fn smart_mode_always_targets_chinese() {
+        let d = resolve_direction("hello world", "auto", "auto", "English");
+        assert_eq!(d.target, "Simplified Chinese");
+        assert_eq!(d.detected, "英文");
+        let d = resolve_direction("你好", "auto", "auto", "English");
+        assert_eq!(d.target, "Simplified Chinese");
+        assert_eq!(d.detected, "中文");
+    }
+
+    #[test]
+    fn custom_mode_passes_explicit_source_and_target() {
+        let d = resolve_direction("hello", "custom", "English", "Japanese");
+        assert_eq!(d.target, "Japanese");
+        assert_eq!(d.detected, "英文");
+    }
+
+    #[test]
+    fn custom_mode_auto_source_detected() {
+        let d = resolve_direction("hello", "custom", "auto", "French");
+        assert_eq!(d.target, "French");
+        assert_eq!(d.detected, "英文");
+    }
+
+    #[test]
+    fn dictionary_query_detection() {
+        assert!(is_dictionary_query("hello"));
+        assert!(is_dictionary_query("hello world"));
+        assert!(is_dictionary_query("你好世界"));
+        // 4 个词不是词典查询
+        assert!(!is_dictionary_query("the quick brown fox"));
+        // 换行 = 句子
+        assert!(!is_dictionary_query("hello\nworld"));
+        // 超长
+        assert!(!is_dictionary_query("this is a very long sentence indeed"));
+    }
+}

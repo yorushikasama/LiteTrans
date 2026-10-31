@@ -24,7 +24,12 @@ impl EngineCfg {
     }
 }
 
-fn build_prompt(custom_prompt: &str, source: Option<&str>, target_name: &str, dict: bool) -> String {
+fn build_prompt(
+    custom_prompt: &str,
+    source: Option<&str>,
+    target_name: &str,
+    dict: bool,
+) -> String {
     let core = if dict {
         // 词典模式:固定纯文本结构,保证弹卡渲染一致
         "你是面向中文使用者的双语词典。用户会发送一个单词或极短短语。\n\
@@ -164,7 +169,11 @@ async fn check_status(resp: reqwest::Response) -> Result<reqwest::Response, Stri
     if !status.is_success() {
         let body = resp.text().await.unwrap_or_default();
         let msg = parse_err_body(&body);
-        let msg = if msg.is_empty() { format!("HTTP {status}") } else { msg };
+        let msg = if msg.is_empty() {
+            format!("HTTP {status}")
+        } else {
+            msg
+        };
         return Err(format!("API 错误 {}: {}", status.as_u16(), msg));
     }
     Ok(resp)
@@ -233,7 +242,10 @@ async fn stream_openai(
         if let Some(err) = v["error"]["message"].as_str() {
             return Err(format!("API 错误: {err}"));
         }
-        if let Some(c) = v["choices"].get(0).and_then(|c| c["delta"]["content"].as_str()) {
+        if let Some(c) = v["choices"]
+            .get(0)
+            .and_then(|c| c["delta"]["content"].as_str())
+        {
             if !c.is_empty() {
                 acc.push_str(c);
                 on_delta(c.to_string());
@@ -280,24 +292,22 @@ async fn stream_anthropic(
         .map_err(|e| format!("网络请求失败: {e}"))?;
     let resp = check_status(resp).await?;
 
-    let full = read_sse(resp, token, |v, acc| {
-        match v["type"].as_str() {
-            Some("content_block_delta") => {
-                if let Some(t) = v["delta"]["text"].as_str() {
-                    if !t.is_empty() {
-                        acc.push_str(t);
-                        on_delta(t.to_string());
-                    }
+    let full = read_sse(resp, token, |v, acc| match v["type"].as_str() {
+        Some("content_block_delta") => {
+            if let Some(t) = v["delta"]["text"].as_str() {
+                if !t.is_empty() {
+                    acc.push_str(t);
+                    on_delta(t.to_string());
                 }
-                Ok(false)
             }
-            Some("message_stop") => Ok(true),
-            Some("error") => Err(format!(
-                "API 错误: {}",
-                v["error"]["message"].as_str().unwrap_or("unknown")
-            )),
-            _ => Ok(false),
+            Ok(false)
         }
+        Some("message_stop") => Ok(true),
+        Some("error") => Err(format!(
+            "API 错误: {}",
+            v["error"]["message"].as_str().unwrap_or("unknown")
+        )),
+        _ => Ok(false),
     })
     .await?;
 
@@ -343,7 +353,10 @@ async fn stream_gemini(
         if let Some(err) = v["error"]["message"].as_str() {
             return Err(format!("API 错误: {err}"));
         }
-        if let Some(parts) = v["candidates"].get(0).and_then(|c| c["content"]["parts"].as_array()) {
+        if let Some(parts) = v["candidates"]
+            .get(0)
+            .and_then(|c| c["content"]["parts"].as_array())
+        {
             for part in parts {
                 if let Some(t) = part["text"].as_str() {
                     if !t.is_empty() {
@@ -379,14 +392,17 @@ pub async fn test_connection(cfg: &EngineCfg) -> Result<String, String> {
     let (url, req) = match cfg.protocol() {
         "anthropic" => (
             format!("{}/v1/messages", cfg.base_url.trim_end_matches('/')),
-            cl.post(format!("{}/v1/messages", cfg.base_url.trim_end_matches('/')))
-                .header("x-api-key", &cfg.api_key)
-                .header("anthropic-version", "2023-06-01")
-                .json(&serde_json::json!({
-                    "model": cfg.model,
-                    "max_tokens": 8,
-                    "messages": [{ "role": "user", "content": "ping" }],
-                })),
+            cl.post(format!(
+                "{}/v1/messages",
+                cfg.base_url.trim_end_matches('/')
+            ))
+            .header("x-api-key", &cfg.api_key)
+            .header("anthropic-version", "2023-06-01")
+            .json(&serde_json::json!({
+                "model": cfg.model,
+                "max_tokens": 8,
+                "messages": [{ "role": "user", "content": "ping" }],
+            })),
         ),
         "gemini" => {
             let url = format!(
@@ -394,12 +410,12 @@ pub async fn test_connection(cfg: &EngineCfg) -> Result<String, String> {
                 cfg.base_url.trim_end_matches('/'),
                 cfg.model.trim()
             );
-            let req = cl
-                .post(&url)
-                .header("x-goog-api-key", &cfg.api_key)
-                .json(&serde_json::json!({
-                    "contents": [{ "role": "user", "parts": [{ "text": "ping" }] }],
-                }));
+            let req =
+                cl.post(&url)
+                    .header("x-goog-api-key", &cfg.api_key)
+                    .json(&serde_json::json!({
+                        "contents": [{ "role": "user", "parts": [{ "text": "ping" }] }],
+                    }));
             (url, req)
         }
         _ => {
@@ -423,7 +439,11 @@ pub async fn test_connection(cfg: &EngineCfg) -> Result<String, String> {
     let text = resp.text().await.unwrap_or_default();
     if !status.is_success() {
         let msg = parse_err_body(&text);
-        let msg = if msg.is_empty() { "请求失败".into() } else { msg };
+        let msg = if msg.is_empty() {
+            "请求失败".into()
+        } else {
+            msg
+        };
         return Err(format!("API 错误 {}: {}", status.as_u16(), msg));
     }
 
@@ -431,7 +451,10 @@ pub async fn test_connection(cfg: &EngineCfg) -> Result<String, String> {
     let v = serde_json::from_str::<serde_json::Value>(&text).ok();
     let ok_shape = match cfg.protocol() {
         "anthropic" => v.as_ref().map(|v| v["content"].is_array()).unwrap_or(false),
-        "gemini" => v.as_ref().map(|v| v["candidates"].is_array()).unwrap_or(false),
+        "gemini" => v
+            .as_ref()
+            .map(|v| v["candidates"].is_array())
+            .unwrap_or(false),
         _ => v.as_ref().map(|v| v["choices"].is_array()).unwrap_or(false),
     };
     let _ = url;
@@ -439,5 +462,39 @@ pub async fn test_connection(cfg: &EngineCfg) -> Result<String, String> {
         Ok(format!("连接正常 · {ms} ms"))
     } else {
         Err("响应格式与所选协议不符".into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_output;
+
+    #[test]
+    fn trims_whitespace() {
+        assert_eq!(sanitize_output("  hello \n".into(), "hi"), "hello");
+    }
+
+    #[test]
+    fn strips_wrapped_quotes_when_source_has_none() {
+        assert_eq!(sanitize_output("\"hello\"".into(), "hello"), "hello");
+        assert_eq!(sanitize_output("“你好”".into(), "你好"), "你好");
+        assert_eq!(
+            sanitize_output("「こんにちは」".into(), "こんにちは"),
+            "こんにちは"
+        );
+    }
+
+    #[test]
+    fn keeps_quotes_when_source_has_them() {
+        // 源文本本身带引号,译文的引号是合法内容,不能剥
+        assert_eq!(
+            sanitize_output("\"hello\"".into(), "\"hello\""),
+            "\"hello\""
+        );
+    }
+
+    #[test]
+    fn keeps_unpaired_quotes() {
+        assert_eq!(sanitize_output("\"hello".into(), "hello"), "\"hello");
     }
 }

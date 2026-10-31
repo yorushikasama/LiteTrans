@@ -26,7 +26,11 @@ const items = [
   ...LANGUAGES.filter((l) => l.value !== "auto").map((l) => ({ value: l.value, label: l.label })),
 ];
 const display = computed(
-  () => items.find((i) => i.value === props.modelValue)?.label ?? props.modelValue ?? props.placeholder ?? "自动",
+  () =>
+    items.find((i) => i.value === props.modelValue)?.label ??
+    props.modelValue ??
+    props.placeholder ??
+    "自动",
 );
 
 function pick(v: string) {
@@ -38,7 +42,12 @@ function pick(v: string) {
 <template>
   <Popover v-model:open="open">
     <PopoverTrigger as-child>
-      <Button variant="outline" role="combobox" :aria-expanded="open" class="w-60 justify-between font-normal">
+      <Button
+        variant="outline"
+        role="combobox"
+        :aria-expanded="open"
+        class="w-60 justify-between font-normal"
+      >
         <span class="truncate">{{ display }}</span>
         <ChevronsUpDown class="size-4 shrink-0 opacity-50" />
       </Button>
@@ -55,7 +64,9 @@ function pick(v: string) {
               :value="`${i.label} ${i.value}`"
               @select="pick(i.value)"
             >
-              <Check :class="cn('mr-1 size-4', i.value === modelValue ? 'opacity-100' : 'opacity-0')" />
+              <Check
+                :class="cn('mr-1 size-4', i.value === modelValue ? 'opacity-100' : 'opacity-0')"
+              />
               {{ i.label }}
             </CommandItem>
           </CommandGroup>

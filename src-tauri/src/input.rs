@@ -31,10 +31,17 @@ pub fn cursor_pos() -> (i32, i32) {
 pub fn work_area_at(x: i32, y: i32) -> (i32, i32, i32, i32) {
     unsafe {
         let hmon = MonitorFromPoint(POINT { x, y }, MONITOR_DEFAULTTONEAREST);
-        let mut mi = MONITORINFO::default();
-        mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+        let mut mi = MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
         if GetMonitorInfoW(hmon, &mut mi).as_bool() {
-            (mi.rcWork.left, mi.rcWork.top, mi.rcWork.right, mi.rcWork.bottom)
+            (
+                mi.rcWork.left,
+                mi.rcWork.top,
+                mi.rcWork.right,
+                mi.rcWork.bottom,
+            )
         } else {
             (0, 0, 1920, 1080)
         }
@@ -48,7 +55,11 @@ fn key_event(vk: VIRTUAL_KEY, up: bool) -> INPUT {
             ki: KEYBDINPUT {
                 wVk: vk,
                 wScan: 0,
-                dwFlags: if up { KEYEVENTF_KEYUP } else { KEYBD_EVENT_FLAGS(0) },
+                dwFlags: if up {
+                    KEYEVENTF_KEYUP
+                } else {
+                    KEYBD_EVENT_FLAGS(0)
+                },
                 time: 0,
                 dwExtraInfo: 0,
             },
@@ -58,7 +69,8 @@ fn key_event(vk: VIRTUAL_KEY, up: bool) -> INPUT {
 
 /// 释放修饰键后模拟一次 Ctrl+C,把前台选中文本复制进剪贴板
 pub fn press_ctrl_c() -> Result<(), String> {
-    let ups: [INPUT; 5] = [VK_MENU, VK_LWIN, VK_RWIN, VK_SHIFT, VK_CONTROL].map(|vk| key_event(vk, true));
+    let ups: [INPUT; 5] =
+        [VK_MENU, VK_LWIN, VK_RWIN, VK_SHIFT, VK_CONTROL].map(|vk| key_event(vk, true));
     unsafe { SendInput(&ups, std::mem::size_of::<INPUT>() as i32) };
     std::thread::sleep(Duration::from_millis(40));
 
@@ -92,12 +104,16 @@ pub async fn wait_clipboard_change(prev_seq: u32, timeout_ms: u64) -> bool {
 
 pub fn save_clipboard() -> SavedClipboard {
     let seq = unsafe { GetClipboardSequenceNumber() };
-    let mut saved = SavedClipboard { seq, text: None, image: None };
+    let mut saved = SavedClipboard {
+        seq,
+        text: None,
+        image: None,
+    };
     if let Ok(mut clip) = arboard::Clipboard::new() {
         saved.text = clip.get_text().ok();
         if saved.text.is_none() {
             if let Ok(img) = clip.get_image() {
-                saved.image = Some((img.width as usize, img.height as usize, img.bytes.into_owned()));
+                saved.image = Some((img.width, img.height, img.bytes.into_owned()));
             }
         }
     }

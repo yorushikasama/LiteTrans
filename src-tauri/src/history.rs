@@ -6,6 +6,7 @@ use tauri::Manager;
 /// 一条翻译历史记录
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[derive(Default)]
 pub struct HistoryItem {
     pub ts: i64,
     pub source: String,
@@ -16,27 +17,19 @@ pub struct HistoryItem {
     pub profile: String,
 }
 
-impl Default for HistoryItem {
-    fn default() -> Self {
-        Self {
-            ts: 0,
-            source: String::new(),
-            result: String::new(),
-            direction: String::new(),
-            dict: false,
-            profile: String::new(),
-        }
-    }
-}
-
 const MAX_ITEMS: usize = 50;
 
 fn history_path(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("history.json"))
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|d| d.join("history.json"))
 }
 
 pub fn record(app: &tauri::AppHandle, item: HistoryItem) {
-    let Some(path) = history_path(app) else { return };
+    let Some(path) = history_path(app) else {
+        return;
+    };
     let mut list = load(app);
     list.insert(0, item);
     list.truncate(MAX_ITEMS);
@@ -46,7 +39,9 @@ pub fn record(app: &tauri::AppHandle, item: HistoryItem) {
 }
 
 pub fn load(app: &tauri::AppHandle) -> Vec<HistoryItem> {
-    let Some(path) = history_path(app) else { return Vec::new() };
+    let Some(path) = history_path(app) else {
+        return Vec::new();
+    };
     fs::read_to_string(&path)
         .ok()
         .and_then(|c| serde_json::from_str(&c).ok())

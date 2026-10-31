@@ -31,9 +31,21 @@ export interface Profile {
 }
 
 export const PROTOCOLS = [
-  { value: "openai", label: "OpenAI 兼容(/chat/completions)", hint: "API 地址通常以 /v1 结尾,如 https://api.deepseek.com/v1" },
-  { value: "anthropic", label: "Anthropic 兼容(/v1/messages)", hint: "API 地址填主机根,如 https://api.anthropic.com" },
-  { value: "gemini", label: "Gemini 兼容(generateContent)", hint: "API 地址填主机根,如 https://generativelanguage.googleapis.com" },
+  {
+    value: "openai",
+    label: "OpenAI 兼容(/chat/completions)",
+    hint: "API 地址通常以 /v1 结尾,如 https://api.deepseek.com/v1",
+  },
+  {
+    value: "anthropic",
+    label: "Anthropic 兼容(/v1/messages)",
+    hint: "API 地址填主机根,如 https://api.anthropic.com",
+  },
+  {
+    value: "gemini",
+    label: "Gemini 兼容(generateContent)",
+    hint: "API 地址填主机根,如 https://generativelanguage.googleapis.com",
+  },
 ] as const;
 
 export function protocolShort(v: string): string {

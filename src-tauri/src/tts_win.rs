@@ -17,7 +17,9 @@ pub fn speak(shared: &SharedTts, text: &str) -> Result<(), String> {
     if let Ok(voices) = tts.voices() {
         if let Some(v) = voices.iter().find(|v| {
             let hay = format!("{} {}", v.id(), v.name()).to_lowercase();
-            hay.starts_with(prefix) || hay.contains(&format!("{prefix}-")) || hay.contains(&format!("{prefix} "))
+            hay.starts_with(prefix)
+                || hay.contains(&format!("{prefix}-"))
+                || hay.contains(&format!("{prefix} "))
         }) {
             let _ = tts.set_voice(v);
         }

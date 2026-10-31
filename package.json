@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "format": "prettier --write \"src/**/*.{ts,vue,css}\"",
+    "lint:format": "prettier --check \"src/**/*.{ts,vue,css}\""
   },
   "dependencies": {
     "@lucide/vue": "^1.65.0",
@@ -26,6 +28,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2",
     "@vitejs/plugin-vue": "^6.0.0",
+    "prettier": "^3.9.10",
     "typescript": "^5.9.0",
     "vite": "^7.0.0"
   }

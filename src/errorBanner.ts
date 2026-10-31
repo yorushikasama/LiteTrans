@@ -15,7 +15,5 @@ export function installErrorBanner() {
     bar.textContent = `⚠ ${msg}`;
   };
   window.addEventListener("error", (e) => show(e.message || "未知错误"));
-  window.addEventListener("unhandledrejection", (e) =>
-    show(`Promise 拒绝: ${e.reason}`),
-  );
+  window.addEventListener("unhandledrejection", (e) => show(`Promise 拒绝: ${e.reason}`));
 }

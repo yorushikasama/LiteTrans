@@ -10,9 +10,7 @@ use windows::Win32::Graphics::Gdi::{
     SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, SRCCOPY,
 };
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
-use windows::Win32::UI::WindowsAndMessaging::{
-    GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN,
-};
+use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
 
 /// 主显示器尺寸 (w, h)
 /// 注意:必须用 SM_CXSCREEN/SM_CYSCREEN(主屏);SM_CXVIRTUALSCREEN 是全虚拟屏(多显示器总和)
@@ -44,33 +42,15 @@ pub fn grab_screen(x: i32, y: i32, w: i32, h: i32) -> Result<Vec<u8>, String> {
         };
         let mut ppv: *mut std::ffi::c_void = std::ptr::null_mut();
         let hdc_mem = CreateCompatibleDC(Some(hdc_screen));
-        let hbmp = CreateDIBSection(
-            Some(hdc_mem),
-            &bmi,
-            DIB_RGB_COLORS,
-            &mut ppv,
-            None,
-            0,
-        )
-        .map_err(|e| format!("CreateDIBSection 失败: {e}"))?;
+        let hbmp = CreateDIBSection(Some(hdc_mem), &bmi, DIB_RGB_COLORS, &mut ppv, None, 0)
+            .map_err(|e| format!("CreateDIBSection 失败: {e}"))?;
         if hbmp.is_invalid() || ppv.is_null() {
             let _ = DeleteDC(hdc_mem);
             ReleaseDC(None, hdc_screen);
             return Err("创建 DIB 失败".into());
         }
         let old = SelectObject(hdc_mem, hbmp.into());
-        let ok = BitBlt(
-            hdc_mem,
-            0,
-            0,
-            w,
-            h,
-            Some(hdc_screen),
-            x,
-            y,
-            SRCCOPY,
-        )
-        .is_ok();
+        let ok = BitBlt(hdc_mem, 0, 0, w, h, Some(hdc_screen), x, y, SRCCOPY).is_ok();
         SelectObject(hdc_mem, old);
         let data = if ok {
             let slice = std::slice::from_raw_parts(ppv as *const u8, (w * h * 4) as usize);
@@ -90,8 +70,8 @@ fn create_engine() -> Result<OcrEngine, String> {
     if let Ok(engine) = OcrEngine::TryCreateFromUserProfileLanguages() {
         return Ok(engine);
     }
-    let langs = OcrEngine::AvailableRecognizerLanguages()
-        .map_err(|e| format!("查询 OCR 语言失败: {e}"))?;
+    let langs =
+        OcrEngine::AvailableRecognizerLanguages().map_err(|e| format!("查询 OCR 语言失败: {e}"))?;
     for i in 0..langs.Size().unwrap_or(0) {
         let lang: Language = langs.GetAt(i).map_err(|e| e.to_string())?;
         if let Ok(engine) = OcrEngine::TryCreateFromLanguage(&lang) {
@@ -109,13 +89,8 @@ pub fn ocr_bgra(bytes: Vec<u8>, w: i32, h: i32) -> Result<String, String> {
         let engine = create_engine()?;
         let buffer = CryptographicBuffer::CreateFromByteArray(&bytes)
             .map_err(|e| format!("像素缓冲创建失败: {e}"))?;
-        let bitmap = SoftwareBitmap::CreateCopyFromBuffer(
-            &buffer,
-            BitmapPixelFormat::Bgra8,
-            w,
-            h,
-        )
-        .map_err(|e| format!("位图创建失败: {e}"))?;
+        let bitmap = SoftwareBitmap::CreateCopyFromBuffer(&buffer, BitmapPixelFormat::Bgra8, w, h)
+            .map_err(|e| format!("位图创建失败: {e}"))?;
         let op = engine
             .RecognizeAsync(&bitmap)
             .map_err(|e| format!("OCR 启动失败: {e}"))?;
@@ -152,5 +127,10 @@ pub fn clamp_to_primary(x: i32, y: i32, w: i32, h: i32) -> RECT {
     let y = y.max(0);
     let w = w.min(sw - x).max(1);
     let h = h.min(sh - y).max(1);
-    RECT { left: x, top: y, right: x + w, bottom: y + h }
+    RECT {
+        left: x,
+        top: y,
+        right: x + w,
+        bottom: y + h,
+    }
 }

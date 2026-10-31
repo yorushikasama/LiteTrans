@@ -15,10 +15,20 @@ use crate::AppState;
 #[derive(Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamMsg {
-    Start { detected: String, target: String, dict: bool },
-    Delta { text: String },
-    Done { text: String },
-    Error { message: String },
+    Start {
+        detected: String,
+        target: String,
+        dict: bool,
+    },
+    Delta {
+        text: String,
+    },
+    Done {
+        text: String,
+    },
+    Error {
+        message: String,
+    },
     Cancelled,
 }
 
@@ -72,7 +82,12 @@ pub async fn translate(
 
     // 同一窗口的新请求会取消旧请求
     let token = Arc::new(CancellationToken::new());
-    if let Some(prev) = state.cancels.lock().unwrap().insert(source.clone(), token.clone()) {
+    if let Some(prev) = state
+        .cancels
+        .lock()
+        .unwrap()
+        .insert(source.clone(), token.clone())
+    {
         prev.cancel();
     }
 
@@ -206,7 +221,11 @@ pub fn save_settings(
 
 /// 一键切换启用的配置(弹卡/托盘/设置页共用)
 #[tauri::command]
-pub fn set_active_profile(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
+pub fn set_active_profile(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
     {
         let mut s = state.settings.write().unwrap();
         if !s.profiles.iter().any(|p| p.id == id) {
@@ -288,11 +307,7 @@ pub async fn fetch_models(profile: Profile) -> Result<Vec<String>, String> {
                                 }
                             }
                             let name = m["name"].as_str()?;
-                            Some(
-                                name.strip_prefix("models/")
-                                    .unwrap_or(name)
-                                    .to_string(),
-                            )
+                            Some(name.strip_prefix("models/").unwrap_or(name).to_string())
                         })
                         .collect()
                 })
@@ -326,7 +341,11 @@ async fn send_json(req: reqwest::RequestBuilder) -> Result<serde_json::Value, St
     let text = resp.text().await.unwrap_or_default();
     if !status.is_success() {
         let msg = engine::parse_err_body(&text);
-        let msg = if msg.is_empty() { "请求失败".into() } else { msg };
+        let msg = if msg.is_empty() {
+            "请求失败".into()
+        } else {
+            msg
+        };
         return Err(format!("API 错误 {}: {}", status.as_u16(), msg));
     }
     serde_json::from_str(&text).map_err(|e| format!("响应解析失败: {e}"))
@@ -364,12 +383,16 @@ pub async fn ocr_translate(app: AppHandle, x: i32, y: i32, w: i32, h: i32) -> Re
     let rect = crate::ocr::clamp_to_primary(x, y, w, h);
     let (rx, ry) = (rect.left, rect.top);
     let (rw, rh) = (rect.right - rect.left, rect.bottom - rect.top);
-    let text = tauri::async_runtime::spawn_blocking(move || crate::ocr::grab_and_ocr(rx, ry, rw, rh))
-        .await
-        .map_err(|e| e.to_string())??;
+    let text =
+        tauri::async_runtime::spawn_blocking(move || crate::ocr::grab_and_ocr(rx, ry, rw, rh))
+            .await
+            .map_err(|e| e.to_string())??;
     if text.trim().is_empty() {
-        crate::clipboard_flow::show_popup_with_error(&app, "未识别到文字,请框选更清晰的区域".to_string())
-            .await?;
+        crate::clipboard_flow::show_popup_with_error(
+            &app,
+            "未识别到文字,请框选更清晰的区域".to_string(),
+        )
+        .await?;
     } else {
         crate::clipboard_flow::show_popup_with_text(&app, text).await?;
     }

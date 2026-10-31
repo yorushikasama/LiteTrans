@@ -85,11 +85,6 @@ pub fn run() {
 
             setup_tray(&handle).map_err(|e| e.to_string())?;
 
-            let hotkey = {
-                let state = handle.state::<AppState>();
-                let s = state.settings.read().unwrap();
-                s.hotkey.clone()
-            };
             if let Err(e) = register_hotkeys(&handle) {
                 eprintln!("[litetrans] {e}");
                 // 热键失败必须让用户看见:打开主窗口并推送通知
@@ -100,7 +95,6 @@ pub fn run() {
                     serde_json::json!({ "message": format!("热键注册失败:{e}。请在设置中检查热键设置。") }),
                 );
             }
-            let _ = hotkey;
 
             // 启动 30s 后后台预热弹卡窗口,消除首次划词的 1-2s 冷启动
             let h2 = handle.clone();
@@ -320,7 +314,6 @@ fn on_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
                     en
                 };
                 if new_enabled {
-                    let hk = state.settings.read().unwrap().hotkey.clone();
                     if let Err(e) = register_hotkeys(&app2) {
                         eprintln!("[litetrans] re-enable hotkey: {e}");
                     }

@@ -127,12 +127,6 @@ export const LANGUAGES = [
   { value: "Esperanto", label: "世界语" },
 ] as const;
 
-/** 自定义方向的源语言选项(含自动检测);须声明在 LANGUAGES 之后 */
-export const SOURCE_OPTIONS = [
-  { value: "auto", label: "自动检测" },
-  ...LANGUAGES.map((l) => ({ value: l.value, label: l.label })),
-];
-
 export function langLabel(v: string): string {
   return LANGUAGES.find((l) => l.value === v)?.label ?? v;
 }

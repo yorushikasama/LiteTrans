@@ -139,6 +139,15 @@ watch(source, (v) => {
   debounceTimer = setTimeout(() => translate(), 800);
 });
 
+function clearAll() {
+  if (streaming.value) invoke("cancel_translate", { source: "main" });
+  source.value = "";
+  result.value = "";
+  errorMsg.value = "";
+  langInfo.value = "";
+  streaming.value = false;
+}
+
 async function loadHistory() {
   historyItems.value = await invoke<HistoryItem[]>("get_history");
 }
@@ -159,13 +168,6 @@ async function clearHistory() {
 async function pasteFromClipboard() {
   const text = await invoke<string | null>("read_clipboard");
   if (text) source.value = text;
-}
-
-function clearAll() {
-  source.value = "";
-  result.value = "";
-  errorMsg.value = "";
-  langInfo.value = "";
 }
 
 watch(tab, (t) => {

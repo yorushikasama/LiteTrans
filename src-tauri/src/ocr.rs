@@ -11,24 +11,13 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+    GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN,
 };
 
-/// 虚拟屏幕范围 (x, y, w, h)
-pub fn virtual_screen() -> (i32, i32, i32, i32) {
-    unsafe {
-        (
-            GetSystemMetrics(SM_XVIRTUALSCREEN),
-            GetSystemMetrics(SM_YVIRTUALSCREEN),
-            GetSystemMetrics(SM_CXVIRTUALSCREEN),
-            GetSystemMetrics(SM_CYVIRTUALSCREEN),
-        )
-    }
-}
-
 /// 主显示器尺寸 (w, h)
+/// 注意:必须用 SM_CXSCREEN/SM_CYSCREEN(主屏);SM_CXVIRTUALSCREEN 是全虚拟屏(多显示器总和)
 pub fn primary_screen() -> (i32, i32) {
-    unsafe { (GetSystemMetrics(SM_CXVIRTUALSCREEN), GetSystemMetrics(SM_CYVIRTUALSCREEN)) }
+    unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) }
 }
 
 /// 从屏幕抓取指定区域,BGRA 不透明像素(行序 top-down)
@@ -41,7 +30,7 @@ pub fn grab_screen(x: i32, y: i32, w: i32, h: i32) -> Result<Vec<u8>, String> {
         if hdc_screen.is_invalid() {
             return Err("GetDC 失败".into());
         }
-        let mut bmi = BITMAPINFO {
+        let bmi = BITMAPINFO {
             bmiHeader: BITMAPINFOHEADER {
                 biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
                 biWidth: w,
@@ -92,27 +81,24 @@ pub fn grab_screen(x: i32, y: i32, w: i32, h: i32) -> Result<Vec<u8>, String> {
         let _ = DeleteObject(hbmp.into());
         let _ = DeleteDC(hdc_mem);
         ReleaseDC(None, hdc_screen);
-        let _ = &mut bmi;
         data.ok_or_else(|| "BitBlt 抓屏失败".into())
     }
 }
 
 /// 获取可用的 OCR 引擎:优先用户界面语言,否则任意已安装语言
 fn create_engine() -> Result<OcrEngine, String> {
-    unsafe {
-        if let Ok(engine) = OcrEngine::TryCreateFromUserProfileLanguages() {
+    if let Ok(engine) = OcrEngine::TryCreateFromUserProfileLanguages() {
+        return Ok(engine);
+    }
+    let langs = OcrEngine::AvailableRecognizerLanguages()
+        .map_err(|e| format!("查询 OCR 语言失败: {e}"))?;
+    for i in 0..langs.Size().unwrap_or(0) {
+        let lang: Language = langs.GetAt(i).map_err(|e| e.to_string())?;
+        if let Ok(engine) = OcrEngine::TryCreateFromLanguage(&lang) {
             return Ok(engine);
         }
-        let langs = OcrEngine::AvailableRecognizerLanguages()
-            .map_err(|e| format!("查询 OCR 语言失败: {e}"))?;
-        for i in 0..langs.Size().unwrap_or(0) {
-            let lang: Language = langs.GetAt(i).map_err(|e| e.to_string())?;
-            if let Ok(engine) = OcrEngine::TryCreateFromLanguage(&lang) {
-                return Ok(engine);
-            }
-        }
-        Err("系统未安装 OCR 语言包:请在 Windows 设置 → 时间和语言 → 语言中添加中文或英文语言包".into())
     }
+    Err("系统未安装 OCR 语言包:请在 Windows 设置 → 时间和语言 → 语言中添加中文或英文语言包".into())
 }
 
 /// 对 BGRA 像素做 OCR
@@ -161,7 +147,7 @@ pub fn grab_and_ocr(x: i32, y: i32, w: i32, h: i32) -> Result<String, String> {
 
 /// 主屏区域合法性裁剪
 pub fn clamp_to_primary(x: i32, y: i32, w: i32, h: i32) -> RECT {
-    let (_, _, sw, sh) = virtual_screen();
+    let (sw, sh) = primary_screen();
     let x = x.max(0);
     let y = y.max(0);
     let w = w.min(sw - x).max(1);

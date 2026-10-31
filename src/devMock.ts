@@ -17,6 +17,8 @@ export function installTauriMock() {
     customPrompt: "",
     autostart: false,
     autoCopy: true,
+    autoTranslate: false,
+    hotkeyEnabled: true,
     setupDone: true,
   };
   const presets = [
@@ -43,6 +45,10 @@ export function installTauriMock() {
           return Promise.resolve(false);
         case "test_profile":
           return Promise.resolve("连接正常 · 123 ms(mock)");
+        case "get_history":
+          return Promise.resolve([
+            { ts: Math.floor(Date.now() / 1000), source: "Hello, LiteTrans!", result: "你好,LiteTrans!", direction: "英文 → 中文", dict: false, profile: "DeepSeek 官方" },
+          ]);
         case "translate":
           return Promise.resolve(null);
         default:

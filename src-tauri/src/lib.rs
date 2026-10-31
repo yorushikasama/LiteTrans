@@ -1,6 +1,7 @@
 mod clipboard_flow;
 mod commands;
 mod engine;
+mod history;
 mod input;
 mod lang;
 mod settings;
@@ -52,6 +53,9 @@ pub fn run() {
             commands::toggle_pin,
             commands::take_pending_text,
             commands::write_clipboard,
+            commands::read_clipboard,
+            commands::get_history,
+            commands::clear_history,
             commands::hide_popup,
             commands::open_main_with_text,
             commands::open_main_settings,
@@ -73,22 +77,22 @@ pub fn run() {
 
             setup_tray(&handle).map_err(|e| e.to_string())?;
 
-            let hotkey = handle
-                .state::<AppState>()
-                .settings
-                .read()
-                .unwrap()
-                .hotkey
-                .clone();
-            if let Err(e) = register_hotkey(&handle, &hotkey) {
-                eprintln!("[litetrans] {e}");
-                // 热键失败必须让用户看见:打开主窗口并推送通知
-                show_main(&handle);
-                use tauri::Emitter;
-                let _ = handle.emit(
-                    "app-notify",
-                    serde_json::json!({ "message": format!("划词热键 {hotkey} 注册失败:{e}。请在设置中更换热键。") }),
-                );
+            let (hotkey, hotkey_enabled) = {
+                let state = handle.state::<AppState>();
+                let s = state.settings.read().unwrap();
+                (s.hotkey.clone(), s.hotkey_enabled)
+            };
+            if hotkey_enabled {
+                if let Err(e) = register_hotkey(&handle, &hotkey) {
+                    eprintln!("[litetrans] {e}");
+                    // 热键失败必须让用户看见:打开主窗口并推送通知
+                    show_main(&handle);
+                    use tauri::Emitter;
+                    let _ = handle.emit(
+                        "app-notify",
+                        serde_json::json!({ "message": format!("划词热键 {hotkey} 注册失败:{e}。请在设置中更换热键。") }),
+                    );
+                }
             }
 
             // 启动 30s 后后台预热弹卡窗口,消除首次划词的 1-2s 冷启动
@@ -116,6 +120,30 @@ pub fn run() {
                 if window.label() == "main" {
                     api.prevent_close();
                     let _ = window.hide();
+                    // 首次关窗给一次性提示
+                    let app = window.app_handle().clone();
+                    let first = {
+                        let state = app.state::<AppState>();
+                        let mut s = state.settings.write().unwrap();
+                        if s.tray_hint_shown {
+                            false
+                        } else {
+                            s.tray_hint_shown = true;
+                            true
+                        }
+                    };
+                    if first {
+                        tauri::async_runtime::spawn(async move {
+                            use tauri::Emitter;
+                            let _ = app.emit_to("main", "tray-hint", ());
+                            let state = app.state::<AppState>();
+                            let snapshot = {
+                                let s = state.settings.read().unwrap();
+                                s.clone()
+                            };
+                            let _ = snapshot.save(&app);
+                        });
+                    }
                 }
             }
         })
@@ -188,17 +216,19 @@ pub fn rebuild_tray(app: &AppHandle) {
 fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     use tauri_plugin_autostart::ManagerExt;
 
-    let (profiles, active_id) = {
+    let (profiles, active_id, hotkey_enabled) = {
         let state = app.state::<AppState>();
         let s = state.settings.read().unwrap();
         (
             s.profiles.clone(),
             s.active_profile().map(|p| p.id.clone()).unwrap_or_default(),
+            s.hotkey_enabled,
         )
     };
 
     let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
     let clip = MenuItem::with_id(app, "translate_clipboard", "翻译剪贴板内容", true, None::<&str>)?;
+    let hk = CheckMenuItem::with_id(app, "hotkey_enabled", "启用划词热键", true, hotkey_enabled, None::<&str>)?;
     let conf = MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
     let is_auto = app.autolaunch().is_enabled().unwrap_or(false);
     let auto = CheckMenuItem::with_id(app, "autostart", "开机自启", true, is_auto, None::<&str>)?;
@@ -224,7 +254,7 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         }
         mb = mb.separator();
     }
-    let menu = mb.item(&conf).item(&auto).separator().item(&quit).build()?;
+    let menu = mb.item(&hk).separator().item(&conf).item(&auto).separator().item(&quit).build()?;
     Ok(menu)
 }
 
@@ -240,6 +270,34 @@ fn on_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
                     }
                     _ => show_main(&app),
                 }
+            });
+        }
+        "hotkey_enabled" => {
+            let app2 = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let state = app2.state::<AppState>();
+                let new_enabled = {
+                    let mut s = match state.settings.write() {
+                        Ok(s) => s,
+                        Err(_) => return,
+                    };
+                    s.hotkey_enabled = !s.hotkey_enabled;
+                    let en = s.hotkey_enabled;
+                    let _ = s.save(&app2);
+                    en
+                };
+                if new_enabled {
+                    let hk = state.settings.read().unwrap().hotkey.clone();
+                    if let Err(e) = register_hotkey(&app2, &hk) {
+                        eprintln!("[litetrans] re-enable hotkey: {e}");
+                    }
+                } else {
+                    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                    let _ = app2.global_shortcut().unregister_all();
+                }
+                let a = app2.clone();
+                let b = a.clone();
+                let _ = a.run_on_main_thread(move || rebuild_tray(&b));
             });
         }
         "autostart" => {

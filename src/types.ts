@@ -53,7 +53,20 @@ export interface Settings {
   autostart: boolean;
   /** 划词弹卡完成后自动复制译文 */
   autoCopy: boolean;
+  /** 主窗口输入即译(防抖) */
+  autoTranslate: boolean;
+  /** 是否启用划词热键 */
+  hotkeyEnabled: boolean;
   setupDone: boolean;
+}
+
+export interface HistoryItem {
+  ts: number;
+  source: string;
+  result: string;
+  direction: string;
+  dict: boolean;
+  profile: string;
 }
 
 export function genId(): string {

@@ -133,6 +133,12 @@ pub struct Settings {
     pub autostart: bool,
     /// 划词弹卡翻译完成后自动复制译文
     pub auto_copy: bool,
+    /// 主窗口输入即译(防抖)
+    pub auto_translate: bool,
+    /// 是否启用划词热键(临时停用开关)
+    pub hotkey_enabled: bool,
+    /// 首次关窗到托盘的提示是否已展示
+    pub tray_hint_shown: bool,
     pub setup_done: bool,
 
     // ── 旧版单配置字段(键名与旧版一致):仅用于读取旧 config.json 做迁移,不再写盘 ──
@@ -158,6 +164,9 @@ impl Default for Settings {
             custom_prompt: String::new(),
             autostart: false,
             auto_copy: true,
+            auto_translate: false,
+            hotkey_enabled: true,
+            tray_hint_shown: false,
             setup_done: false,
             provider: String::new(),
             base_url: String::new(),

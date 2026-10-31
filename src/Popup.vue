@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "vue-sonner";
-import { BookOpen, Copy, Maximize2, Pin, PinOff, Volume2, X } from "@lucide/vue";
+import { BookOpen, Copy, Maximize2, Pin, PinOff, RotateCcw, Volume2, X } from "@lucide/vue";
 import type { Profile, Settings, StreamMsg } from "./types";
 import { langLabel } from "./types";
 
@@ -184,6 +184,13 @@ async function openSettings() {
         >
           <PinOff v-if="pinned" />
           <Pin v-else />
+        </Button>
+        <Button
+          v-if="source && (status === 'done' || status === 'error')"
+          variant="ghost" size="icon" class="size-6 rounded-md" title="重新翻译"
+          @click="start(source)"
+        >
+          <RotateCcw />
         </Button>
         <Button variant="ghost" size="icon" class="size-6 rounded-md" title="在主窗口中打开" @click="openMain">
           <Maximize2 />

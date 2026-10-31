@@ -24,6 +24,7 @@ pub enum StreamMsg {
 
 #[tauri::command]
 pub async fn translate(
+    app: AppHandle,
     state: State<'_, AppState>,
     text: String,
     source: String,
@@ -107,6 +108,26 @@ pub async fn translate(
                     let _ = clip.set_text(full.clone());
                 }
             }
+            // 记录翻译历史
+            let direction = if dict {
+                "词典查询".to_string()
+            } else {
+                format!("{} → {}", dir.detected, dir.target)
+            };
+            crate::history::record(
+                &app,
+                crate::history::HistoryItem {
+                    ts: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs() as i64)
+                        .unwrap_or(0),
+                    source: text.clone(),
+                    result: full.clone(),
+                    direction,
+                    dict,
+                    profile: p.name.clone(),
+                },
+            );
             let _ = on_event.send(StreamMsg::Done { text: full });
         }
         Err(e) => {
@@ -155,15 +176,26 @@ pub fn save_settings(
         }
     }
 
-    let old_hotkey = state.settings.read().unwrap().hotkey.clone();
+    let (old_hotkey, old_enabled) = {
+        let s = state.settings.read().unwrap();
+        (s.hotkey.clone(), s.hotkey_enabled)
+    };
     settings.save(&app)?;
     *state.settings.write().unwrap() = settings;
 
-    let new_hotkey = state.settings.read().unwrap().hotkey.clone();
-    if new_hotkey != old_hotkey {
+    let (new_hotkey, new_enabled) = {
+        let s = state.settings.read().unwrap();
+        (s.hotkey.clone(), s.hotkey_enabled)
+    };
+    if !new_enabled {
+        use tauri_plugin_global_shortcut::GlobalShortcutExt;
+        let _ = app.global_shortcut().unregister_all();
+    } else if new_hotkey != old_hotkey || !old_enabled {
         if let Err(e) = crate::register_hotkey(&app, &new_hotkey) {
             // 注册失败则回滚旧热键
-            let _ = crate::register_hotkey(&app, &old_hotkey);
+            if old_enabled {
+                let _ = crate::register_hotkey(&app, &old_hotkey);
+            }
             state.settings.write().unwrap().hotkey = old_hotkey;
             return Err(e);
         }
@@ -317,6 +349,23 @@ pub fn take_pending_text(state: State<'_, AppState>) -> Option<String> {
 pub fn write_clipboard(text: String) -> Result<(), String> {
     let mut clip = arboard::Clipboard::new().map_err(|e| e.to_string())?;
     clip.set_text(text).map_err(|e| e.to_string())
+}
+
+/// 读取剪贴板文本(主窗口「粘贴」按钮用)
+#[tauri::command]
+pub fn read_clipboard() -> Result<Option<String>, String> {
+    let mut clip = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+    clip.get_text().map(Some).or(Ok(None))
+}
+
+#[tauri::command]
+pub fn get_history(app: AppHandle) -> Vec<crate::history::HistoryItem> {
+    crate::history::load(&app)
+}
+
+#[tauri::command]
+pub fn clear_history(app: AppHandle) {
+    crate::history::clear(&app);
 }
 
 #[tauri::command]

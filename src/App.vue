@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "vue-sonner";
 import {
+  ClipboardPaste,
   Copy,
+  Eraser,
+  History,
   Languages,
   Loader2,
   Plus,
@@ -13,7 +16,7 @@ import {
   Volume2,
 } from "@lucide/vue";
 import { genId, langLabel, PROTOCOLS, protocolShort } from "./types";
-import type { Preset, Profile, Settings, StreamMsg } from "./types";
+import type { HistoryItem, Preset, Profile, Settings, StreamMsg } from "./types";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
@@ -57,6 +60,7 @@ const resultBox = ref<HTMLElement | null>(null);
 
 const settings = ref<Settings | null>(null);
 const presets = ref<Preset[]>([]);
+const historyItems = ref<HistoryItem[]>([]);
 
 // 档案编辑状态
 const editing = ref<Profile | null>(null);
@@ -118,9 +122,54 @@ onMounted(async () => {
   await listen("open-settings", () => {
     tab.value = "settings";
   });
+  await listen("tray-hint", () => {
+    toast.info("已最小化到托盘,选中文字按 Alt+Q 随时划词", { duration: 6000 });
+  });
   await listen<{ message: string }>("app-notify", (e) => {
     toast.error(e.payload.message, { duration: 10000 });
   });
+});
+
+// 输入即译:800ms 防抖
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+watch(source, (v) => {
+  if (!settings.value?.autoTranslate) return;
+  if (debounceTimer) clearTimeout(debounceTimer);
+  if (!v.trim()) return;
+  debounceTimer = setTimeout(() => translate(), 800);
+});
+
+async function loadHistory() {
+  historyItems.value = await invoke<HistoryItem[]>("get_history");
+}
+
+function fmtTime(ts: number): string {
+  const d = new Date(ts * 1000);
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return sameDay ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+}
+
+async function clearHistory() {
+  await invoke("clear_history");
+  historyItems.value = [];
+}
+
+async function pasteFromClipboard() {
+  const text = await invoke<string | null>("read_clipboard");
+  if (text) source.value = text;
+}
+
+function clearAll() {
+  source.value = "";
+  result.value = "";
+  errorMsg.value = "";
+  langInfo.value = "";
+}
+
+watch(tab, (t) => {
+  if (t === "history") loadHistory();
 });
 
 async function refreshSettings() {
@@ -338,6 +387,9 @@ function setTemperature(v: number | number[]) {
           <TabsTrigger value="translate">
             <Languages class="size-4" />翻译
           </TabsTrigger>
+          <TabsTrigger value="history">
+            <History class="size-4" />历史
+          </TabsTrigger>
           <TabsTrigger value="settings">
             <Settings2 class="size-4" />设置
           </TabsTrigger>
@@ -382,6 +434,14 @@ function setTemperature(v: number | number[]) {
               <Square />
               停止
             </Button>
+            <Button variant="ghost" size="sm" :disabled="!source.trim() && !result" @click="clearAll">
+              <Eraser />
+              清空
+            </Button>
+            <Button variant="ghost" size="sm" @click="pasteFromClipboard">
+              <ClipboardPaste />
+              粘贴
+            </Button>
             <Button variant="ghost" size="sm" :disabled="!result" @click="copyResult">
               <Copy />
               复制
@@ -403,6 +463,43 @@ function setTemperature(v: number | number[]) {
               {{ result || "译文会显示在这里" }}
               <span v-if="streaming" class="lt-cursor">▍</span>
             </template>
+          </div>
+        </div>
+      </TabsContent>
+
+      <!-- 历史页 -->
+      <TabsContent value="history" class="min-h-0 flex-1 mt-0">
+        <div class="flex h-full flex-col gap-2.5 px-4 pt-3 pb-4">
+          <div class="flex items-center justify-between">
+            <span class="text-[13px] font-semibold tracking-wide text-muted-foreground">
+              翻译历史(最近 50 条,仅存本地)
+            </span>
+            <Button
+              v-if="historyItems.length"
+              variant="outline" size="sm" class="h-7 text-xs"
+              @click="clearHistory"
+            >清空历史</Button>
+          </div>
+
+          <div v-if="!historyItems.length" class="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+            还没有翻译记录
+          </div>
+          <div v-else class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+            <button
+              v-for="(h, i) in historyItems"
+              :key="`${h.ts}-${i}`"
+              class="rounded-xl border bg-card p-3 text-left transition-colors hover:border-primary/50"
+              @click="source = h.source; tab = 'translate'"
+            >
+              <div class="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span>{{ fmtTime(h.ts) }}</span>
+                <span class="rounded border border-primary/40 px-1.5 text-primary">{{ h.direction }}</span>
+                <span>{{ h.profile }}</span>
+                <span v-if="h.dict" class="text-primary">词典</span>
+              </div>
+              <div class="mt-1 line-clamp-2 text-xs text-muted-foreground">{{ h.source }}</div>
+              <div class="mt-0.5 line-clamp-3 text-sm">{{ h.result }}</div>
+            </button>
           </div>
         </div>
       </TabsContent>
@@ -542,6 +639,16 @@ function setTemperature(v: number | number[]) {
           <div class="space-y-1.5">
             <Label class="text-xs text-muted-foreground">划词热键</Label>
             <Input v-model="settings.hotkey" class="max-w-60" placeholder="如 alt+q / ctrl+shift+t / f9" />
+          </div>
+
+          <div class="flex items-center gap-2.5">
+            <Switch v-model="settings.hotkeyEnabled" @update:model-value="persist(true)" />
+            <span class="text-sm">启用划词热键(临时停用可在托盘菜单操作)</span>
+          </div>
+
+          <div class="flex items-center gap-2.5">
+            <Switch v-model="settings.autoTranslate" @update:model-value="persist(true)" />
+            <span class="text-sm">输入即译(停止输入 0.8 秒后自动翻译)</span>
           </div>
 
           <div class="space-y-1.5">

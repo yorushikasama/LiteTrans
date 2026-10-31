@@ -641,6 +641,11 @@ function setTemperature(v: number | number[]) {
             <Input v-model="settings.hotkey" class="max-w-60" placeholder="如 alt+q / ctrl+shift+t / f9" />
           </div>
 
+          <div class="space-y-1.5">
+            <Label class="text-xs text-muted-foreground">截图翻译热键(框选屏幕区域识别并翻译)</Label>
+            <Input v-model="settings.captureHotkey" class="max-w-60" placeholder="如 alt+x / ctrl+shift+s" />
+          </div>
+
           <div class="flex items-center gap-2.5">
             <Switch v-model="settings.hotkeyEnabled" @update:model-value="persist(true)" />
             <span class="text-sm">启用划词热键(临时停用可在托盘菜单操作)</span>

@@ -14,6 +14,7 @@ export function installTauriMock() {
     sourceLang: "auto",
     targetLang: "English",
     hotkey: "alt+q",
+    captureHotkey: "alt+x",
     customPrompt: "",
     autostart: false,
     autoCopy: true,

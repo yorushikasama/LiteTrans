@@ -23,6 +23,7 @@ export default defineConfig({
       input: {
         main: "index.html",
         popup: "popup.html",
+        capture: "capture.html",
       },
     },
   },

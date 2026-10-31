@@ -113,9 +113,22 @@ onMounted(async () => {
   }
   // 首次创建时页面加载较慢,由后端暂存文本,挂载后主动取
   const pending = await invoke<string | null>("take_pending_text");
-  if (pending) await start(pending);
+  const pendingErr = await invoke<string | null>("take_pending_error");
+  if (pendingErr) {
+    source.value = "";
+    errorMsg.value = pendingErr;
+    status.value = "error";
+  } else if (pending) {
+    await start(pending);
+  }
   // 之后每次唤起由事件推送
   await listen<{ text: string }>("do-translate", (e) => start(e.payload.text));
+  await listen<{ message: string }>("translate-error", (e) => {
+    source.value = "";
+    result.value = "";
+    errorMsg.value = e.payload.message;
+    status.value = "error";
+  });
 });
 
 onUnmounted(() => window.removeEventListener("keydown", onKeydown));

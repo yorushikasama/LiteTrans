@@ -1,8 +1,10 @@
+mod capture_flow;
 mod clipboard_flow;
 mod commands;
 mod engine;
 mod history;
 mod input;
+mod ocr;
 mod lang;
 mod settings;
 mod tts_win;
@@ -28,6 +30,8 @@ pub struct AppState {
     pub pinned: AtomicBool,
     /// 首次创建弹卡时暂存的待翻译文本
     pub pending_popup_text: Mutex<Option<String>>,
+    /// 首次创建弹卡时暂存的错误信息(OCR 无结果等)
+    pub pending_popup_error: Mutex<Option<String>>,
     pub tts: SharedTts,
 }
 
@@ -52,6 +56,9 @@ pub fn run() {
             commands::fetch_models,
             commands::toggle_pin,
             commands::take_pending_text,
+            commands::take_pending_error,
+            commands::ocr_translate,
+            commands::hide_capture,
             commands::write_clipboard,
             commands::read_clipboard,
             commands::get_history,
@@ -72,28 +79,28 @@ pub fn run() {
                 cancels: Mutex::new(HashMap::new()),
                 pinned: AtomicBool::new(false),
                 pending_popup_text: Mutex::new(None),
+                pending_popup_error: Mutex::new(None),
                 tts: Arc::new(Mutex::new(None)),
             });
 
             setup_tray(&handle).map_err(|e| e.to_string())?;
 
-            let (hotkey, hotkey_enabled) = {
+            let hotkey = {
                 let state = handle.state::<AppState>();
                 let s = state.settings.read().unwrap();
-                (s.hotkey.clone(), s.hotkey_enabled)
+                s.hotkey.clone()
             };
-            if hotkey_enabled {
-                if let Err(e) = register_hotkey(&handle, &hotkey) {
-                    eprintln!("[litetrans] {e}");
-                    // 热键失败必须让用户看见:打开主窗口并推送通知
-                    show_main(&handle);
-                    use tauri::Emitter;
-                    let _ = handle.emit(
-                        "app-notify",
-                        serde_json::json!({ "message": format!("划词热键 {hotkey} 注册失败:{e}。请在设置中更换热键。") }),
-                    );
-                }
+            if let Err(e) = register_hotkeys(&handle) {
+                eprintln!("[litetrans] {e}");
+                // 热键失败必须让用户看见:打开主窗口并推送通知
+                show_main(&handle);
+                use tauri::Emitter;
+                let _ = handle.emit(
+                    "app-notify",
+                    serde_json::json!({ "message": format!("热键注册失败:{e}。请在设置中检查热键设置。") }),
+                );
             }
+            let _ = hotkey;
 
             // 启动 30s 后后台预热弹卡窗口,消除首次划词的 1-2s 冷启动
             let h2 = handle.clone();
@@ -159,27 +166,47 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
-pub fn register_hotkey(app: &AppHandle, hotkey: &str) -> Result<(), String> {
+/// 注册全部全局热键:划词 + 截图翻译
+pub fn register_hotkeys(app: &AppHandle) -> Result<(), String> {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
     app.global_shortcut()
         .unregister_all()
         .map_err(|e| e.to_string())?;
-    if hotkey.trim().is_empty() {
-        return Ok(());
+    let (hk, enabled, cap) = {
+        let state = app.state::<AppState>();
+        let s = state.settings.read().unwrap();
+        (s.hotkey.clone(), s.hotkey_enabled, s.capture_hotkey.clone())
+    };
+    if enabled && !hk.trim().is_empty() {
+        app.global_shortcut()
+            .on_shortcut(hk.as_str(), |app, _shortcut, event| {
+                if event.state == ShortcutState::Pressed {
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = clipboard_flow::capture_selection(&app).await {
+                            eprintln!("[litetrans] {e}");
+                        }
+                    });
+                }
+            })
+            .map_err(|e| format!("注册划词热键 {hk} 失败: {e}"))?;
     }
-    app.global_shortcut()
-        .on_shortcut(hotkey, |app, _shortcut, event| {
-            if event.state == ShortcutState::Pressed {
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    if let Err(e) = clipboard_flow::capture_selection(&app).await {
-                        eprintln!("[litetrans] {e}");
-                    }
-                });
-            }
-        })
-        .map_err(|e| format!("注册热键 {hotkey} 失败: {e}"))
+    if !cap.trim().is_empty() {
+        app.global_shortcut()
+            .on_shortcut(cap.as_str(), |app, _shortcut, event| {
+                if event.state == ShortcutState::Pressed {
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = capture_flow::open_capture(&app) {
+                            eprintln!("[litetrans] {e}");
+                        }
+                    });
+                }
+            })
+            .map_err(|e| format!("注册截图热键 {cap} 失败: {e}"))?;
+    }
+    Ok(())
 }
 
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
@@ -228,13 +255,19 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
 
     let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
     let clip = MenuItem::with_id(app, "translate_clipboard", "翻译剪贴板内容", true, None::<&str>)?;
+    let capture_label = {
+        let state = app.state::<AppState>();
+        let s = state.settings.read().unwrap().capture_hotkey.clone();
+        format!("截图翻译({})", if s.is_empty() { "未设置" } else { s.as_str() })
+    };
+    let cap = MenuItem::with_id(app, "capture", &capture_label, true, None::<&str>)?;
     let hk = CheckMenuItem::with_id(app, "hotkey_enabled", "启用划词热键", true, hotkey_enabled, None::<&str>)?;
     let conf = MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
     let is_auto = app.autolaunch().is_enabled().unwrap_or(false);
     let auto = CheckMenuItem::with_id(app, "autostart", "开机自启", true, is_auto, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
 
-    let mut mb = MenuBuilder::new(app).item(&show).item(&clip).separator();
+    let mut mb = MenuBuilder::new(app).item(&show).item(&clip).item(&cap).separator();
     if !profiles.is_empty() {
         for p in &profiles {
             let label = if p.model.trim().is_empty() {
@@ -288,7 +321,7 @@ fn on_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
                 };
                 if new_enabled {
                     let hk = state.settings.read().unwrap().hotkey.clone();
-                    if let Err(e) = register_hotkey(&app2, &hk) {
+                    if let Err(e) = register_hotkeys(&app2) {
                         eprintln!("[litetrans] re-enable hotkey: {e}");
                     }
                 } else {
@@ -300,7 +333,15 @@ fn on_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
                 let _ = a.run_on_main_thread(move || rebuild_tray(&b));
             });
         }
-        "autostart" => {
+                "capture" => {
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = capture_flow::open_capture(&app) {
+                            eprintln!("[litetrans] {e}");
+                        }
+                    });
+                }
+                "autostart" => {
             use tauri_plugin_autostart::ManagerExt;
             let al = app.autolaunch();
             let enabled = if al.is_enabled().unwrap_or(false) {

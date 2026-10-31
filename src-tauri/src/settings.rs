@@ -129,6 +129,8 @@ pub struct Settings {
     pub source_lang: String,
     pub target_lang: String,
     pub hotkey: String,
+    /// 截图翻译热键
+    pub capture_hotkey: String,
     pub custom_prompt: String,
     pub autostart: bool,
     /// 划词弹卡翻译完成后自动复制译文
@@ -161,6 +163,7 @@ impl Default for Settings {
             source_lang: "auto".into(),
             target_lang: "Simplified Chinese".into(),
             hotkey: "alt+q".into(),
+            capture_hotkey: "alt+x".into(),
             custom_prompt: String::new(),
             autostart: false,
             auto_copy: true,

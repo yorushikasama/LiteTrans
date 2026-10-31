@@ -26,6 +26,19 @@ pub async fn capture_selection(app: &AppHandle) -> Result<(), String> {
 
 /// 在光标附近显示弹卡并触发翻译
 pub async fn show_popup_with_text(app: &AppHandle, text: String) -> Result<(), String> {
+    show_popup_payload(app, serde_json::json!({ "text": text }), "do-translate").await
+}
+
+/// 在光标附近显示弹卡但只展示错误信息(如 OCR 无结果)
+pub async fn show_popup_with_error(app: &AppHandle, message: String) -> Result<(), String> {
+    show_popup_payload(app, serde_json::json!({ "message": message }), "translate-error").await
+}
+
+async fn show_popup_payload(
+    app: &AppHandle,
+    payload: serde_json::Value,
+    event: &str,
+) -> Result<(), String> {
     let existed = app.get_webview_window("popup").is_some();
     let win = ensure_popup(app)?;
 
@@ -55,12 +68,17 @@ pub async fn show_popup_with_text(app: &AppHandle, text: String) -> Result<(), S
 
     if existed {
         // 弹卡页面已就绪,直接发事件
-        app.emit_to("popup", "do-translate", serde_json::json!({ "text": text }))
-            .map_err(|e| e.to_string())?;
+        app.emit_to("popup", event, payload).map_err(|e| e.to_string())?;
     } else {
         // 首次创建:页面尚未加载完成,由前端挂载后主动取
         let state = app.state::<AppState>();
-        *state.pending_popup_text.lock().unwrap() = Some(text);
+        if event == "do-translate" {
+            *state.pending_popup_text.lock().unwrap() =
+                payload.get("text").and_then(|t| t.as_str()).map(String::from);
+        } else {
+            *state.pending_popup_error.lock().unwrap() =
+                payload.get("message").and_then(|t| t.as_str()).map(String::from);
+        }
     }
     Ok(())
 }

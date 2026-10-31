@@ -1,6 +1,6 @@
 {
   "identifier": "default",
   "description": "主窗口与翻译弹卡的默认能力",
-  "windows": ["main", "popup"],
+  "windows": ["main", "popup", "capture"],
   "permissions": ["core:default"]
 }

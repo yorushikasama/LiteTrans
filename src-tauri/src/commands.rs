@@ -176,27 +176,27 @@ pub fn save_settings(
         }
     }
 
-    let (old_hotkey, old_enabled) = {
+    let old = {
         let s = state.settings.read().unwrap();
-        (s.hotkey.clone(), s.hotkey_enabled)
+        (s.hotkey.clone(), s.hotkey_enabled, s.capture_hotkey.clone())
     };
     settings.save(&app)?;
     *state.settings.write().unwrap() = settings;
 
-    let (new_hotkey, new_enabled) = {
+    let new = {
         let s = state.settings.read().unwrap();
-        (s.hotkey.clone(), s.hotkey_enabled)
+        (s.hotkey.clone(), s.hotkey_enabled, s.capture_hotkey.clone())
     };
-    if !new_enabled {
-        use tauri_plugin_global_shortcut::GlobalShortcutExt;
-        let _ = app.global_shortcut().unregister_all();
-    } else if new_hotkey != old_hotkey || !old_enabled {
-        if let Err(e) = crate::register_hotkey(&app, &new_hotkey) {
-            // 注册失败则回滚旧热键
-            if old_enabled {
-                let _ = crate::register_hotkey(&app, &old_hotkey);
+    if old != new {
+        if let Err(e) = crate::register_hotkeys(&app) {
+            // 注册失败则回滚旧热键设置
+            let (old_hotkey, _, old_cap) = old;
+            {
+                let mut s = state.settings.write().unwrap();
+                s.hotkey = old_hotkey;
+                s.capture_hotkey = old_cap;
             }
-            state.settings.write().unwrap().hotkey = old_hotkey;
+            let _ = crate::register_hotkeys(&app);
             return Err(e);
         }
     }
@@ -343,6 +343,37 @@ pub fn toggle_pin(state: State<'_, AppState>) -> bool {
 #[tauri::command]
 pub fn take_pending_text(state: State<'_, AppState>) -> Option<String> {
     state.pending_popup_text.lock().unwrap().take()
+}
+
+#[tauri::command]
+pub fn take_pending_error(state: State<'_, AppState>) -> Option<String> {
+    state.pending_popup_error.lock().unwrap().take()
+}
+
+#[tauri::command]
+pub fn hide_capture(app: AppHandle) {
+    crate::capture_flow::hide_capture(&app);
+}
+
+/// 框选完成:隐藏遮罩 → 抓屏 → OCR → 弹卡翻译
+#[tauri::command]
+pub async fn ocr_translate(app: AppHandle, x: i32, y: i32, w: i32, h: i32) -> Result<(), String> {
+    crate::capture_flow::hide_capture(&app);
+    // 等遮罩从屏幕上消失,避免污染截图
+    tokio::time::sleep(std::time::Duration::from_millis(180)).await;
+    let rect = crate::ocr::clamp_to_primary(x, y, w, h);
+    let (rx, ry) = (rect.left, rect.top);
+    let (rw, rh) = (rect.right - rect.left, rect.bottom - rect.top);
+    let text = tauri::async_runtime::spawn_blocking(move || crate::ocr::grab_and_ocr(rx, ry, rw, rh))
+        .await
+        .map_err(|e| e.to_string())??;
+    if text.trim().is_empty() {
+        crate::clipboard_flow::show_popup_with_error(&app, "未识别到文字,请框选更清晰的区域".to_string())
+            .await?;
+    } else {
+        crate::clipboard_flow::show_popup_with_text(&app, text).await?;
+    }
+    Ok(())
 }
 
 #[tauri::command]

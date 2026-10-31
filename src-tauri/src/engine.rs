@@ -26,12 +26,14 @@ impl EngineCfg {
 
 fn build_prompt(custom_prompt: &str, source: Option<&str>, target_name: &str, dict: bool) -> String {
     let core = if dict {
-        // 词典模式:词/短语的释义而非整句翻译
-        "You are a concise dictionary engine. The user will send a single word or a very short phrase.\n\
-         Explain it for a native Chinese speaker:\n\
-         - Non-Chinese word: give the IPA pronunciation in slashes, then part of speech and core meanings in Simplified Chinese, then ONE example sentence with its Chinese translation.\n\
-         - Chinese word: give the pinyin, the meanings, and one example sentence.\n\
-         - Output plain text only, compact (under 100 words), no markdown headings, no extra commentary."
+        // 词典模式:固定纯文本结构,保证弹卡渲染一致
+        "你是面向中文使用者的双语词典。用户会发送一个单词或极短短语。\n\
+         严格按以下纯文本格式输出,除该格式外不要输出任何内容(不要 Markdown 标题、不要前后空行、不要解释):\n\
+         第一行:音标(外文词,如 /ˈdevəlpmənt/)或拼音(中文词)\n\
+         第二行起:词性. 释义(最多 3 个最常用义项,按常用度排序,义项间用分号分隔)\n\
+         最后一行:例. 例句(下一行缩进给例句的中文翻译)\n\
+         若为专有名词或品牌:第一行给通行中文名称,之后用一句话说明;中文词则第一行给拼音。\n\
+         若该词更常作为缩写/网络用语,在释义后用括号注明。"
             .to_string()
     } else {
         let dir = match source {
@@ -39,12 +41,16 @@ fn build_prompt(custom_prompt: &str, source: Option<&str>, target_name: &str, di
             None => format!("Translate the user's text into {target_name}."),
         };
         format!(
-            "{dir}\n\
-             Rules:\n\
-             - Output ONLY the translation. No explanations, no surrounding quotes.\n\
-             - Preserve line breaks and original formatting.\n\
-             - Keep code, URLs, identifiers and proper nouns intact unless context demands translation.\n\
-             - If the text is already in the target language, output it unchanged."
+            "You are a professional translation engine. {dir}\n\
+             Output rules (strict):\n\
+             1. Reply with the translation ONLY — no preamble (no \"以下是翻译\", \"Translation:\", etc.), no explanations, no notes, and no surrounding quotes or brackets.\n\
+             2. Preserve the original structure exactly: line breaks, blank lines, bullet/numbered lists, indentation, and Markdown syntax.\n\
+             3. Do not introduce Markdown (bold, code fences, headers) that the source does not have.\n\
+             4. Keep code, commands, URLs, emails, file paths, @mentions, #hashtags and identifiers unchanged.\n\
+             5. Keep brand and product names as-is unless an official translation exists.\n\
+             6. If the text is already in {target_name}, output it unchanged.\n\
+             7. Match the tone and register of the source (formal stays formal, casual stays casual).\n\
+             8. If a word is ambiguous, pick its most common sense and stay consistent throughout."
         )
     };
     let mut p = core;
@@ -54,6 +60,27 @@ fn build_prompt(custom_prompt: &str, source: Option<&str>, target_name: &str, di
         p.push_str(extra);
     }
     p
+}
+
+/// 输出净化:去首尾空白;若模型包了一层源文本没有的对称引号则剥掉
+fn sanitize_output(s: String, source: &str) -> String {
+    let t = s.trim();
+    let chars: Vec<char> = t.chars().collect();
+    if chars.len() > 2 {
+        let first = chars[0];
+        let last = chars[chars.len() - 1];
+        let paired = matches!(
+            (first, last),
+            ('"', '"') | ('“', '”') | ('‘', '’') | ('「', '」') | ('『', '』')
+        );
+        // 源文本本身以此引号开头时不剥,避免破坏合法的引用内容
+        let source_has = source.trim_start().starts_with(first);
+        if paired && !source_has {
+            let inner: String = chars[1..chars.len() - 1].iter().collect();
+            return inner.trim().to_string();
+        }
+    }
+    t.to_string()
 }
 
 fn client() -> Result<reqwest::Client, String> {
@@ -159,11 +186,13 @@ pub async fn stream_translate(
     token: &CancellationToken,
     on_delta: impl FnMut(String),
 ) -> Result<String, String> {
-    match cfg.protocol() {
+    let out = match cfg.protocol() {
         "anthropic" => stream_anthropic(cfg, text, dir, dict, token, on_delta).await,
         "gemini" => stream_gemini(cfg, text, dir, dict, token, on_delta).await,
         _ => stream_openai(cfg, text, dir, dict, token, on_delta).await,
-    }
+    }?;
+    // 最终净化:去首尾空白与多余包裹引号(流式过程中前端看到的仍是原始增量)
+    Ok(sanitize_output(out, text))
 }
 
 /* ────────── OpenAI 兼容:/chat/completions ────────── */

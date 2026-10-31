@@ -35,10 +35,23 @@ pub fn maybe_show_tray_hint(window: &tauri::Window) {
 
 pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let menu = build_tray_menu(app)?;
+    // 提示语带上当前调式,和主窗口、弹卡顶部的五音标记一致
+    let tooltip = {
+        let state = app.state::<AppState>();
+        let s = state.settings.read().unwrap();
+        match s.active_profile() {
+            Some(p) => format!(
+                "LiteTrans · {}调 · {}",
+                crate::settings::tone_name(&p.id),
+                p.name
+            ),
+            None => "LiteTrans · 尚未配置模型".to_string(),
+        }
+    };
 
     TrayIconBuilder::with_id("tray")
         .icon(tauri::include_image!("icons/32x32.png"))
-        .tooltip("LiteTrans · AI 划词翻译")
+        .tooltip(tooltip)
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(on_tray_menu_event)
@@ -117,11 +130,15 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         .item(&cap)
         .separator();
     if !profiles.is_empty() {
+        // 配置分组带不可点标题,每条配置前缀它的「调」(宫商角徵羽)
+        let head = MenuItem::with_id(app, "profiles_head", "模型配置", false, None::<&str>)?;
+        mb = mb.item(&head);
         for p in &profiles {
+            let tone = crate::settings::tone_name(&p.id);
             let label = if p.model.trim().is_empty() {
-                p.name.clone()
+                format!("{tone}  {}", p.name)
             } else {
-                format!("{}  ·  {}", p.name, p.model.trim())
+                format!("{tone}  {}  ·  {}", p.name, p.model.trim())
             };
             let item = CheckMenuItem::with_id(
                 app,

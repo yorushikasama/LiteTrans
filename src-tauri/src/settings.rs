@@ -161,6 +161,22 @@ pub fn preset_by_id(id: &str) -> Option<&'static Preset> {
     PRESETS.iter().find(|p| p.id == id)
 }
 
+/// 五音:宫商角徵羽
+///
+/// 每条配置按 id 派生一个「调」,托盘菜单与前端使用同一算法
+/// (src/tones.ts:toneIndex),两边必须保持一致:按 UTF-16 码元求和后取模,
+/// 与 JS 的 charCodeAt 逐位对齐。
+const TONE_NAMES: [&str; 5] = ["宫", "商", "角", "徵", "羽"];
+
+pub fn tone_index(id: &str) -> usize {
+    let sum: u32 = id.encode_utf16().map(|u| u as u32).sum();
+    (sum as usize) % TONE_NAMES.len()
+}
+
+pub fn tone_name(id: &str) -> &'static str {
+    TONE_NAMES[tone_index(id)]
+}
+
 pub fn new_profile_id() -> String {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -505,5 +521,27 @@ mod tests {
         s.apply_legacy_direction(&raw);
         assert_eq!(s.trans_mode, "auto");
         assert_eq!(s.target_lang, "Simplified Chinese");
+    }
+
+    #[test]
+    fn tone_index_is_within_five() {
+        for id in ["p1", "p2", "pa1b2c3", "", "配置一"] {
+            assert!(tone_index(id) < 5, "tone_index({id}) out of range");
+        }
+    }
+
+    /// 与 src/tones.ts 的 toneIndex 必须同算法:码元求和取模。
+    /// 前端侧对应测试在 tests/tones.test.ts 中给出相同期望值。
+    #[test]
+    fn tone_index_matches_frontend_algorithm() {
+        // "p1" -> 'p'(112) + '1'(49) = 161 -> 161 % 5 = 1 -> 商
+        assert_eq!(tone_index("p1"), 1);
+        assert_eq!(tone_name("p1"), "商");
+        // "abc" -> 97 + 98 + 99 = 294 -> 4 -> 羽
+        assert_eq!(tone_index("abc"), 4);
+        assert_eq!(tone_name("abc"), "羽");
+        // 空 id 落到宫,前端 toneOf(undefined) 同样回落到 TONES[0]
+        assert_eq!(tone_index(""), 0);
+        assert_eq!(tone_name(""), "宫");
     }
 }

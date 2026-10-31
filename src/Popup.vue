@@ -3,9 +3,10 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "vue-sonner";
-import { BookOpen, Copy, Maximize2, Pin, PinOff, RotateCcw, Volume2, X } from "@lucide/vue";
+import { Check, Copy, Maximize2, Pin, PinOff, RotateCcw, Volume2, X } from "@lucide/vue";
 import type { Profile, Settings, StreamMsg } from "./types";
 import { langLabel } from "./types";
+import { TONES, toneIndex } from "./tones";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ const result = ref("");
 const status = ref<"idle" | "loading" | "streaming" | "done" | "error">("idle");
 const errorMsg = ref("");
 const langInfo = ref("");
+const dictMode = ref(false);
 const pinned = ref(false);
 const copied = ref(false);
 const resultBox = ref<HTMLElement | null>(null);
@@ -36,8 +38,12 @@ const cardKey = ref(0);
 
 const isConfigError = computed(() => /API Key|配置|设置|热键/.test(errorMsg.value));
 
+/** 当前配置的调,弹卡与主窗口、托盘显示同一个字 */
+const tone = computed(() => TONES[toneIndex(activeId.value)]);
+const activeName = computed(() => profiles.value.find((p) => p.id === activeId.value)?.name ?? "");
+
 function composeLangInfo(detected?: string, target?: string, dict?: boolean): string {
-  if (dict) return "词典查询";
+  if (dict) return "词典释义";
   if (transMode.value === "custom") {
     const src =
       sourceLang.value && sourceLang.value !== "auto"
@@ -45,7 +51,7 @@ function composeLangInfo(detected?: string, target?: string, dict?: boolean): st
         : detected || "自动";
     return `${src} → ${langLabel(target || targetLang.value)}`;
   }
-  return `${detected || "自动"} → 中文`;
+  return `${detected || "自动"} → 中文(简体)`;
 }
 
 async function start(text: string) {
@@ -53,11 +59,13 @@ async function start(text: string) {
   result.value = "";
   errorMsg.value = "";
   langInfo.value = "";
+  dictMode.value = false;
   status.value = "loading";
   const ch = new Channel<StreamMsg>();
   ch.onmessage = (m) => {
     switch (m.type) {
       case "start":
+        dictMode.value = !!m.dict;
         langInfo.value = composeLangInfo(m.detected, m.target, m.dict);
         status.value = "streaming";
         cardKey.value++;
@@ -162,7 +170,7 @@ async function switchProfile() {
   try {
     await invoke("set_active_profile", { id: activeId.value });
     prevActiveId.value = activeId.value;
-    toast.success("已切换模型配置");
+    toast.success(`已切换到「${activeName.value}」`);
   } catch (e) {
     activeId.value = prev; // 失败回滚下拉显示
     toast.error(String(e));
@@ -180,17 +188,24 @@ async function openSettings() {
     <Toaster theme="system" position="top-center" />
     <div
       :key="cardKey"
-      class="lt-pop m-1.5 flex h-[calc(100vh-12px)] flex-col rounded-xl border bg-popover/85 p-2.5 shadow-xl backdrop-blur-xl"
+      class="lt-pop lt-card m-1.5 flex h-[calc(100vh-12px)] flex-col overflow-hidden rounded-[10px] border border-border/80 shadow-[0_6px_22px_-6px_rgba(20,26,38,0.35)] backdrop-blur-xl"
     >
-      <div class="flex items-center gap-1">
-        <BookOpen v-if="langInfo === '词典查询'" class="size-3.5 text-primary" />
-        <span class="text-xs text-muted-foreground">{{ langInfo || "翻译" }}</span>
+      <!-- 顶条:调式 + 方向读数 + 操作 -->
+      <div class="flex h-8 shrink-0 items-center gap-1.5 border-b border-border/70 px-2">
+        <span
+          class="grid size-[17px] shrink-0 place-items-center rounded-[3px] text-[10px] leading-none font-semibold"
+          :style="{ background: tone.color, color: 'oklch(0.19 0.02 258)' }"
+          :title="`${tone.name}调 · ${activeName}`"
+          >{{ tone.name }}</span
+        >
+        <span class="lt-num truncate text-[11px] text-muted-foreground">
+          {{ langInfo || "准备翻译" }}
+        </span>
         <span class="flex-1"></span>
         <Button
           variant="ghost"
-          size="icon"
-          class="size-6 rounded-md"
-          :class="pinned && 'text-primary'"
+          size="icon-xs"
+          :class="pinned && 'text-gong-ink'"
           :title="pinned ? '取消钉住' : '钉住(失焦不隐藏)'"
           @click="togglePin"
         >
@@ -200,96 +215,77 @@ async function openSettings() {
         <Button
           v-if="source && (status === 'done' || status === 'error')"
           variant="ghost"
-          size="icon"
-          class="size-6 rounded-md"
+          size="icon-xs"
           title="重新翻译"
           @click="start(source)"
         >
           <RotateCcw />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-6 rounded-md"
-          title="在主窗口中打开"
-          @click="openMain"
-        >
+        <Button variant="ghost" size="icon-xs" title="在主窗口中打开" @click="openMain">
           <Maximize2 />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-6 rounded-md"
-          title="关闭 (Esc)"
-          @click="invoke('hide_popup')"
-        >
+        <Button variant="ghost" size="icon-xs" title="关闭 (Esc)" @click="invoke('hide_popup')">
           <X />
         </Button>
       </div>
 
+      <!-- 原文:三行封顶 -->
       <div
-        class="line-clamp-3 border-b pb-2 leading-5 text-muted-foreground"
+        class="line-clamp-3 shrink-0 border-b border-border/50 px-2.5 py-1.5 text-[12px] leading-[1.55] text-muted-foreground"
         :title="source"
-        style="font-size: 12px"
       >
-        {{ source }}
+        {{ source || "未取到文本" }}
       </div>
 
-      <div
-        ref="resultBox"
-        class="min-h-0 flex-1 overflow-y-auto pt-2 leading-relaxed whitespace-pre-wrap text-sm"
-      >
-        <div v-if="status === 'error'" class="text-destructive text-xs">
+      <!-- 译文:主角 -->
+      <div ref="resultBox" class="min-h-0 flex-1 overflow-y-auto px-2.5 py-2">
+        <div v-if="status === 'error'" class="text-[12px] leading-5 text-destructive">
           {{ errorMsg }}
           <div v-if="isConfigError" class="mt-2">
-            <Button size="sm" class="h-7 text-xs" @click="openSettings">去设置</Button>
+            <Button size="xs" @click="openSettings">打开设置</Button>
           </div>
         </div>
-        <div v-else-if="status === 'loading'" class="text-muted-foreground text-xs">翻译中…</div>
-        <template v-else>
-          {{ result }}<span v-if="status === 'streaming'" class="lt-cursor">▍</span>
-        </template>
+        <div
+          v-else-if="status === 'loading'"
+          class="flex items-center gap-1.5 text-[12px] text-muted-foreground"
+        >
+          <span class="size-1.5 animate-pulse rounded-full bg-gong"></span>
+          正在翻译…
+        </div>
+        <div v-else class="text-[13.5px] leading-[1.72] whitespace-pre-wrap">
+          {{ result }}<span v-if="status === 'streaming'" class="lt-cursor"></span>
+        </div>
       </div>
 
-      <div class="flex items-center gap-1 pt-1.5">
-        <Button
-          variant="ghost"
-          size="sm"
-          class="h-6 px-2 text-xs"
-          :disabled="!result"
-          @click="copy"
-        >
-          <Copy class="size-3.5" />
-          {{ copied ? "已复制" : "复制" }}
+      <!-- 底条:复制 / 朗读 / 切换配置 -->
+      <div class="flex h-8 shrink-0 items-center gap-0.5 border-t border-border/70 px-1.5">
+        <Button variant="ghost" size="xs" :disabled="!result" @click="copy">
+          <Check v-if="copied" class="text-jue-ink" />
+          <Copy v-else />
+          <span class="text-[11px]">{{ copied ? "已复制" : "复制" }}</span>
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          class="h-6 px-2 text-xs"
-          :disabled="!result && !source"
-          @click="speak"
-        >
-          <Volume2 class="size-3.5" />
-          朗读
+        <Button variant="ghost" size="xs" :disabled="!result && !source" @click="speak">
+          <Volume2 />
+          <span class="text-[11px]">朗读</span>
         </Button>
         <span class="flex-1"></span>
+        <span v-if="dictMode" class="lt-num mr-1 text-[10px] text-jue-ink">词典</span>
         <Select v-if="profiles.length" v-model="activeId" @update:model-value="switchProfile">
           <SelectTrigger
-            class="h-7 w-36 gap-1 border-none bg-transparent px-2 text-xs shadow-none hover:bg-accent"
+            class="h-6 w-auto max-w-36 gap-1 border-0 bg-transparent px-1.5 text-[11px] shadow-none hover:bg-accent"
             title="切换模型配置"
           >
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem v-for="p in profiles" :key="p.id" :value="p.id">{{ p.name }}</SelectItem>
+          <SelectContent align="end">
+            <SelectItem v-for="p in profiles" :key="p.id" :value="p.id">
+              <span class="lt-num mr-1 text-[10px] opacity-60">{{
+                TONES[toneIndex(p.id)].name
+              }}</span>
+              {{ p.name }}
+            </SelectItem>
           </SelectContent>
         </Select>
-        <span
-          v-if="status === 'streaming' || status === 'loading'"
-          class="text-[11px] text-muted-foreground"
-        >
-          生成中
-        </span>
       </div>
     </div>
   </div>

@@ -4,6 +4,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "vue-sonner";
 import {
+  Check,
   ClipboardPaste,
   Copy,
   Eraser,
@@ -18,12 +19,11 @@ import {
 import { genId, langLabel, PROTOCOLS, protocolShort } from "./types";
 import type { HistoryItem, Preset, Profile, Settings, StreamMsg } from "./types";
 import { cn } from "@/lib/utils";
+import { toneMode } from "./tones";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -47,15 +47,18 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import LanguageSelect from "./components/LanguageSelect.vue";
 import ModelCombobox from "./components/ModelCombobox.vue";
+import ToneChip from "./components/ToneChip.vue";
+import ToneMark from "./components/ToneMark.vue";
 import TranslateDirection from "./components/TranslateDirection.vue";
 
-const tab = ref<"translate" | "settings">("translate");
+const tab = ref<"translate" | "history" | "settings">("translate");
 const source = ref("");
 const result = ref("");
 const streaming = ref(false);
 const errorMsg = ref("");
 const langInfo = ref("");
 const speaking = ref(false);
+const copiedResult = ref(false);
 const resultBox = ref<HTMLElement | null>(null);
 
 const settings = ref<Settings | null>(null);
@@ -98,8 +101,22 @@ const modelOptions = computed(() => {
   return Array.from(new Set([...(preset?.models ?? []), ...fetchedModels.value]));
 });
 
+/** 未翻译时也显示将要使用的方向,让「当前的设置」始终可见 */
+const plannedDirection = computed(() => {
+  const s = settings.value;
+  if (!s) return "";
+  if (s.transMode === "custom") {
+    const src = s.sourceLang && s.sourceLang !== "auto" ? langLabel(s.sourceLang) : "自动";
+    return `${src} → ${langLabel(s.targetLang)}`;
+  }
+  return "自动 → 中文(简体)";
+});
+
+const directionReadout = computed(() => langInfo.value || plannedDirection.value);
+const sourceChars = computed(() => source.value.length);
+
 function composeLangInfo(detected?: string, target?: string, dict?: boolean): string {
-  if (dict) return "词典查询";
+  if (dict) return "词典释义";
   const s = settings.value;
   if (!s) return "";
   if (s.transMode === "custom") {
@@ -107,7 +124,7 @@ function composeLangInfo(detected?: string, target?: string, dict?: boolean): st
       s.sourceLang && s.sourceLang !== "auto" ? langLabel(s.sourceLang) : detected || "自动";
     return `${src} → ${langLabel(target || s.targetLang)}`;
   }
-  return `${detected || "自动"} → 中文`;
+  return `${detected || "自动"} → 中文(简体)`;
 }
 
 onMounted(async () => {
@@ -157,7 +174,9 @@ function fmtTime(ts: number): string {
   const today = new Date();
   const sameDay = d.toDateString() === today.toDateString();
   const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  return sameDay ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+  return sameDay
+    ? hm
+    : `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")} ${hm}`;
 }
 
 async function clearHistory() {
@@ -232,6 +251,8 @@ async function cancel() {
 async function copyResult() {
   if (result.value) {
     await invoke("write_clipboard", { text: result.value });
+    copiedResult.value = true;
+    setTimeout(() => (copiedResult.value = false), 1400);
     toast.success("已复制译文");
   }
 }
@@ -375,208 +396,305 @@ function setTemperature(v: number | number[]) {
 <template>
   <div class="h-screen">
     <Toaster theme="system" position="top-center" />
+
     <Tabs v-model="tab" class="flex h-full flex-col gap-0">
-      <header class="flex items-center justify-between border-b bg-card px-4 py-2.5 select-none">
-        <div class="flex items-center gap-2">
-          <span
-            class="flex size-6.5 items-center justify-center rounded-[7px] bg-gradient-to-br from-indigo-500 to-blue-600 text-[13px] font-bold text-white"
-            >译</span
-          >
-          <span class="text-sm font-semibold tracking-wide">LiteTrans</span>
+      <!-- 顶栏:五音立标 + 字数标牌 + 页签 + 当前调式读数 -->
+      <header class="flex h-12 shrink-0 items-center gap-4 border-b bg-card pr-3 pl-4 select-none">
+        <div class="flex items-center gap-2.5">
+          <ToneMark :id="activeProfile?.id" size="sm" />
+          <span class="lt-wordmark">LiteTrans</span>
         </div>
-        <TabsList>
-          <TabsTrigger value="translate"> <Languages class="size-4" />翻译 </TabsTrigger>
-          <TabsTrigger value="history"> <History class="size-4" />历史 </TabsTrigger>
-          <TabsTrigger value="settings"> <Settings2 class="size-4" />设置 </TabsTrigger>
+
+        <TabsList class="h-8 gap-0.5 bg-transparent p-0">
+          <TabsTrigger
+            value="translate"
+            class="h-full rounded-md border-0 px-3 data-[state=active]:bg-secondary data-[state=active]:shadow-none"
+          >
+            <Languages class="size-3.5" />
+            翻译
+          </TabsTrigger>
+          <TabsTrigger
+            value="history"
+            class="h-full rounded-md border-0 px-3 data-[state=active]:bg-secondary data-[state=active]:shadow-none"
+          >
+            <History class="size-3.5" />
+            历史
+          </TabsTrigger>
+          <TabsTrigger
+            value="settings"
+            class="h-full rounded-md border-0 px-3 data-[state=active]:bg-secondary data-[state=active]:shadow-none"
+          >
+            <Settings2 class="size-3.5" />
+            设置
+          </TabsTrigger>
         </TabsList>
+
+        <span class="flex-1"></span>
+
+        <!-- 当前调式:点一下进设置 -->
+        <button
+          v-if="activeProfile"
+          class="flex max-w-[52%] items-center gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-accent"
+          :title="`当前配置:${activeProfile.name}(${toneMode(activeProfile.id)})`"
+          @click="tab = 'settings'"
+        >
+          <ToneChip :id="activeProfile.id" />
+          <span class="truncate text-xs text-muted-foreground">
+            {{ activeProfile.name }}
+            <span v-if="activeProfile.model" class="lt-num opacity-70">
+              · {{ activeProfile.model }}
+            </span>
+          </span>
+        </button>
       </header>
 
-      <!-- 翻译页 -->
-      <TabsContent value="translate" class="min-h-0 flex-1 mt-0">
-        <div v-if="settings" class="flex h-full flex-col gap-2.5 px-4 pt-3 pb-4">
+      <!-- ────────── 翻译 ────────── -->
+      <TabsContent value="translate" class="mt-0 min-h-0 flex-1">
+        <div v-if="settings" class="flex h-full flex-col">
           <div
             v-if="!activeReady"
-            class="flex items-center justify-between gap-3 rounded-lg border border-primary/40 bg-primary/10 px-4 py-2.5"
+            class="flex shrink-0 items-center gap-3 border-b border-gong/40 bg-gong/10 px-4 py-2"
           >
-            <span class="text-sm">首次使用:请先添加一条模型配置(服务商 + API Key)。</span>
-            <Button size="sm" @click="tab = 'settings'">去配置</Button>
+            <span class="text-xs">还没有可用的模型配置,添加服务商与 API Key 后即可翻译。</span>
+            <span class="flex-1"></span>
+            <Button size="xs" @click="tab = 'settings'">添加配置</Button>
           </div>
 
-          <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <!-- 工具行 -->
+          <div class="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
             <TranslateDirection :settings="settings" @change="persist(true)" />
-            <span class="text-xs text-muted-foreground">
-              Ctrl+Enter 翻译 · 划词按 {{ settings.hotkey || "Alt+Q" }}
-              <template v-if="activeProfile">
-                · 当前:{{ activeProfile.name
-                }}{{ activeProfile.model ? ` · ${activeProfile.model}` : "" }}
-              </template>
+            <span class="flex-1"></span>
+            <span class="lt-num text-[11px] text-muted-foreground">
+              {{ settings.hotkey || "Alt+Q" }} 划词 · Ctrl+Enter 翻译
             </span>
           </div>
 
-          <Textarea
-            v-model="source"
-            class="min-h-24 flex-1 resize-none leading-relaxed"
-            placeholder="输入要翻译的文本…"
-            @keydown.ctrl.enter.prevent="translate"
-          />
+          <!-- 输入区:与译文区等分,不抢戏 -->
+          <div class="relative min-h-0 flex-1 border-b border-border/70">
+            <Textarea
+              v-model="source"
+              class="h-full resize-none rounded-none border-0 bg-transparent px-4 py-3 text-[15px] leading-7 shadow-none field-sizing-fixed focus-visible:ring-0"
+              placeholder="粘贴或输入要翻译的文本,Ctrl+Enter 翻译"
+              @keydown.ctrl.enter.prevent="translate"
+            />
+          </div>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <Button :disabled="!source.trim() || streaming" @click="translate">
+          <!-- 方向读数分隔条 -->
+          <div class="flex shrink-0 items-center gap-3 px-4 py-2">
+            <span class="h-px flex-1 bg-border"></span>
+            <span class="lt-num flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span
+                class="size-1.5 rounded-full transition-colors"
+                :class="streaming ? 'bg-gong' : 'bg-shang'"
+              ></span>
+              {{ directionReadout }}
+            </span>
+            <span class="h-px flex-1 bg-border"></span>
+          </div>
+
+          <!-- 译文区:主角 -->
+          <div ref="resultBox" class="min-h-0 flex-1 overflow-y-auto px-4 pb-3">
+            <div v-if="errorMsg" class="text-sm leading-6 text-destructive">{{ errorMsg }}</div>
+            <div
+              v-else-if="!result"
+              class="flex h-full flex-col items-center justify-center gap-1.5 text-xs text-muted-foreground"
+            >
+              <span>译文会显示在这里</span>
+              <span class="opacity-70">
+                选中任意文字按
+                <kbd class="lt-num rounded border bg-muted px-1 py-px">{{ settings.hotkey }}</kbd>
+                也能划词翻译
+              </span>
+            </div>
+            <div v-else class="lt-fade text-[15px] leading-[1.8] whitespace-pre-wrap">
+              {{ result }}<span v-if="streaming" class="lt-cursor"></span>
+            </div>
+          </div>
+
+          <!-- 操作行 -->
+          <div class="flex shrink-0 items-center gap-1.5 border-t px-3 py-2">
+            <Button :disabled="!source.trim() || streaming" size="sm" @click="translate">
               <Loader2 v-if="streaming" class="animate-spin" />
               <Languages v-else />
               翻译
             </Button>
-            <Button v-if="streaming" variant="outline" @click="cancel">
+            <Button v-if="streaming" variant="outline" size="sm" @click="cancel">
               <Square />
               停止
             </Button>
+            <span class="mx-1 h-4 w-px bg-border"></span>
+            <Button variant="ghost" size="icon-sm" title="粘贴剪贴板" @click="pasteFromClipboard">
+              <ClipboardPaste />
+            </Button>
             <Button
               variant="ghost"
-              size="sm"
+              size="icon-sm"
+              title="清空"
               :disabled="!source.trim() && !result"
               @click="clearAll"
             >
               <Eraser />
-              清空
             </Button>
-            <Button variant="ghost" size="sm" @click="pasteFromClipboard">
-              <ClipboardPaste />
-              粘贴
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="复制译文"
+              :disabled="!result"
+              @click="copyResult"
+            >
+              <Check v-if="copiedResult" class="text-jue-ink" />
+              <Copy v-else />
             </Button>
-            <Button variant="ghost" size="sm" :disabled="!result" @click="copyResult">
-              <Copy />
-              复制
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              :title="speaking ? '停止朗读' : '朗读'"
+              :disabled="!result && !source.trim()"
+              @click="speak"
+            >
+              <Volume2 :class="speaking && 'text-gong-ink'" />
             </Button>
-            <Button variant="ghost" size="sm" :disabled="!result && !source.trim()" @click="speak">
-              <Volume2 />
-              {{ speaking ? "停止朗读" : "朗读" }}
-            </Button>
-            <span v-if="langInfo" class="ml-1 text-xs text-muted-foreground">{{ langInfo }}</span>
-          </div>
-
-          <div
-            ref="resultBox"
-            class="min-h-28 flex-[1.2] overflow-y-auto rounded-lg border bg-card p-3.5 leading-7 whitespace-pre-wrap"
-            :class="{ 'text-muted-foreground': !result && !errorMsg }"
-          >
-            <div v-if="errorMsg" class="text-destructive text-sm">{{ errorMsg }}</div>
-            <template v-else>
-              {{ result || "译文会显示在这里" }}
-              <span v-if="streaming" class="lt-cursor">▍</span>
-            </template>
+            <span class="flex-1"></span>
+            <span class="lt-num text-[11px] text-muted-foreground">{{ sourceChars }} 字</span>
           </div>
         </div>
       </TabsContent>
 
-      <!-- 历史页 -->
-      <TabsContent value="history" class="min-h-0 flex-1 mt-0">
-        <div class="flex h-full flex-col gap-2.5 px-4 pt-3 pb-4">
-          <div class="flex items-center justify-between">
-            <span class="text-[13px] font-semibold tracking-wide text-muted-foreground">
-              翻译历史(最近 50 条,仅存本地)
+      <!-- ────────── 历史 ────────── -->
+      <TabsContent value="history" class="mt-0 min-h-0 flex-1">
+        <div class="flex h-full flex-col">
+          <div class="flex shrink-0 items-center gap-3 border-b px-4 py-2.5">
+            <span class="lt-section">历史记录</span>
+            <span class="lt-num text-[11px] text-muted-foreground">
+              {{ historyItems.length }} / 50 · 仅存本地
             </span>
+            <span class="flex-1"></span>
             <Button
               v-if="historyItems.length"
-              variant="outline"
-              size="sm"
-              class="h-7 text-xs"
+              variant="ghost"
+              size="xs"
+              class="text-muted-foreground"
               @click="clearHistory"
-              >清空历史</Button
+              >清空</Button
             >
           </div>
 
           <div
             v-if="!historyItems.length"
-            class="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground"
+            class="flex flex-1 flex-col items-center justify-center gap-2 text-center"
           >
-            还没有翻译记录
+            <span class="text-sm text-muted-foreground">还没有翻译记录</span>
+            <span class="text-xs text-muted-foreground/70">
+              翻译过的内容会自动存成历史,点击可重新编辑
+            </span>
           </div>
-          <div v-else class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+
+          <div v-else class="min-h-0 flex-1 overflow-y-auto">
             <button
               v-for="(h, i) in historyItems"
               :key="`${h.ts}-${i}`"
-              class="rounded-xl border bg-card p-3 text-left transition-colors hover:border-primary/50"
+              class="flex w-full items-start gap-3 border-b border-border/60 px-4 py-2.5 text-left transition-colors hover:bg-accent/60"
               @click="
                 source = h.source;
                 tab = 'translate';
               "
             >
-              <div class="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span>{{ fmtTime(h.ts) }}</span>
-                <span class="rounded border border-primary/40 px-1.5 text-primary">{{
-                  h.direction
-                }}</span>
-                <span>{{ h.profile }}</span>
-                <span v-if="h.dict" class="text-primary">词典</span>
-              </div>
-              <div class="mt-1 line-clamp-2 text-xs text-muted-foreground">{{ h.source }}</div>
-              <div class="mt-0.5 line-clamp-3 text-sm">{{ h.result }}</div>
+              <span class="lt-num w-14 shrink-0 pt-0.5 text-[11px] text-muted-foreground">
+                {{ fmtTime(h.ts) }}
+              </span>
+              <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span class="flex items-center gap-2">
+                  <ToneChip v-if="h.profileId" :id="h.profileId" />
+                  <span class="lt-num truncate text-[11px] text-muted-foreground">
+                    {{ h.direction }}<template v-if="h.dict"> · 词典</template>
+                    <template v-if="h.profile"> · {{ h.profile }}</template>
+                  </span>
+                </span>
+                <span class="line-clamp-1 text-xs text-muted-foreground">{{ h.source }}</span>
+                <span class="line-clamp-2 text-[13px] leading-5">{{ h.result }}</span>
+              </span>
             </button>
           </div>
         </div>
       </TabsContent>
 
-      <!-- 设置页 -->
-      <TabsContent value="settings" class="min-h-0 flex-1 mt-0">
-        <div v-if="settings" class="flex flex-col gap-4 overflow-y-auto px-4 pt-3 pb-6 h-full">
-          <h2 class="text-[13px] font-semibold tracking-wide text-muted-foreground">模型配置</h2>
+      <!-- ────────── 设置 ────────── -->
+      <TabsContent value="settings" class="mt-0 min-h-0 flex-1">
+        <div v-if="settings" class="h-full overflow-y-auto px-4 pt-3 pb-8">
+          <!-- 模型配置 -->
+          <div class="flex items-center gap-2">
+            <span class="lt-section">模型配置</span>
+            <span class="lt-num text-[11px] text-muted-foreground">
+              {{ settings.profiles.length }} 条
+            </span>
+          </div>
+          <p class="mt-1 text-xs text-muted-foreground">
+            每条配置是一个「调」,随时切换;API Key 只存在 Windows 凭据管理器。
+          </p>
 
           <div
             v-if="!settings.profiles.length && !editing"
-            class="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground"
+            class="mt-3 rounded-lg border border-dashed px-4 py-6 text-center"
           >
-            还没有配置,点下方「新增配置」添加服务商与 API Key。
+            <div class="text-sm">还没有任何配置</div>
+            <div class="mt-1 text-xs text-muted-foreground">
+              选一个服务商预设,填入 API Key 就能开始
+            </div>
+            <Button size="sm" class="mt-3" @click="newProfile"><Plus />新增配置</Button>
           </div>
 
-          <div
-            v-for="p in settings.profiles"
-            :key="p.id"
-            class="rounded-xl border bg-card p-3.5"
-            :class="{ 'border-primary bg-primary/10': p.id === settings.activeId }"
-          >
-            <div class="flex items-center gap-2.5">
-              <span class="text-sm font-semibold">{{ p.name }}</span>
-              <span
-                class="rounded border border-primary/50 px-1.5 text-[11px] leading-4 text-primary"
-              >
-                {{ protocolShort(p.protocol) }}
-              </span>
-              <span v-if="p.model" class="text-xs text-muted-foreground">{{ p.model }}</span>
-              <Badge v-if="p.id === settings.activeId" class="ml-auto">使用中</Badge>
-            </div>
-            <div class="mt-0.5 text-xs break-all text-muted-foreground">
-              {{ p.baseUrl || "(使用预设地址)" }}
-            </div>
-            <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
-              <Button
-                v-if="p.id !== settings.activeId"
-                variant="outline"
-                size="sm"
-                class="h-7 px-3 text-xs"
-                @click="activateProfile(p.id)"
-                >启用</Button
-              >
-              <Button variant="outline" size="sm" class="h-7 px-3 text-xs" @click="editProfile(p)"
-                >编辑</Button
-              >
-              <Button variant="outline" size="sm" class="h-7 px-3 text-xs" @click="testProfile(p)"
-                >测试</Button
-              >
-              <Button
-                variant="outline"
-                size="sm"
-                class="h-7 px-3 text-xs text-destructive hover:text-destructive"
-                @click="askDelete(p)"
-                >删除</Button
-              >
-              <span
-                v-if="testMsg[p.id]"
-                class="text-xs"
-                :class="
-                  testMsg[p.id].startsWith('连接正常') ? 'text-emerald-500' : 'text-destructive'
-                "
-                >{{ testMsg[p.id] }}</span
-              >
+          <div v-else class="mt-1">
+            <div
+              v-for="p in settings.profiles"
+              :key="p.id"
+              class="-mx-2 flex items-start gap-3 rounded-md border-b border-border/60 px-2 py-2.5 transition-colors"
+              :class="p.id === settings.activeId && 'bg-gong/10'"
+            >
+              <ToneChip :id="p.id" :filled="p.id === settings.activeId" class="mt-0.5" />
+
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span class="text-sm font-medium">{{ p.name }}</span>
+                  <span class="lt-num text-[10px] tracking-wider text-shang-ink uppercase">
+                    {{ protocolShort(p.protocol) }}
+                  </span>
+                  <span v-if="p.id === settings.activeId" class="lt-num text-[10px] text-gong-ink"
+                    >· 使用中</span
+                  >
+                </div>
+                <div class="lt-num truncate text-[11px] text-muted-foreground">
+                  {{ p.model || "未指定模型" }}
+                  <span class="opacity-60">· {{ p.baseUrl || "预设地址" }}</span>
+                </div>
+                <div
+                  v-if="testMsg[p.id]"
+                  class="mt-1 text-[11px]"
+                  :class="
+                    testMsg[p.id].startsWith('连接正常') ? 'text-jue-ink' : 'text-destructive'
+                  "
+                >
+                  {{ testMsg[p.id] }}
+                </div>
+              </div>
+
+              <div class="flex shrink-0 items-center gap-1">
+                <Button
+                  v-if="p.id !== settings.activeId"
+                  variant="ghost"
+                  size="xs"
+                  @click="activateProfile(p.id)"
+                  >启用</Button
+                >
+                <Button variant="ghost" size="xs" @click="editProfile(p)">编辑</Button>
+                <Button variant="ghost" size="xs" @click="testProfile(p)">测试</Button>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  class="text-muted-foreground hover:text-destructive"
+                  @click="askDelete(p)"
+                  >删除</Button
+                >
+              </div>
             </div>
           </div>
 
@@ -584,15 +702,21 @@ function setTemperature(v: number | number[]) {
           <div
             v-if="editing"
             ref="editorEl"
-            class="flex flex-col gap-3 rounded-xl border border-primary/60 bg-card p-4"
+            class="mt-3 flex flex-col gap-3 rounded-lg border border-gong/50 bg-card p-4"
           >
-            <div class="space-y-1.5">
-              <Label class="text-xs text-muted-foreground">名称</Label>
+            <div class="flex items-center gap-2">
+              <ToneChip :id="editing.id" filled />
+              <span class="text-sm font-medium">编辑配置</span>
+            </div>
+
+            <div class="space-y-1">
+              <span class="lt-label">名称</span>
               <Input v-model="editing.name" placeholder="如 DeepSeek 官方 / 我的 OpenRouter" />
             </div>
+
             <div class="grid grid-cols-2 gap-3">
-              <div class="space-y-1.5">
-                <Label class="text-xs text-muted-foreground">服务商预设</Label>
+              <div class="space-y-1">
+                <span class="lt-label">服务商预设</span>
                 <Select v-model="editing.provider" @update:model-value="applyPreset">
                   <SelectTrigger class="w-full"
                     ><SelectValue placeholder="选择服务商"
@@ -604,8 +728,8 @@ function setTemperature(v: number | number[]) {
                   </SelectContent>
                 </Select>
               </div>
-              <div class="space-y-1.5">
-                <Label class="text-xs text-muted-foreground">接口协议</Label>
+              <div class="space-y-1">
+                <span class="lt-label">接口协议</span>
                 <Select v-model="editing.protocol">
                   <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -616,15 +740,19 @@ function setTemperature(v: number | number[]) {
                 </Select>
               </div>
             </div>
-            <div class="space-y-1.5">
-              <Label class="text-xs text-muted-foreground">API 地址(Base URL)</Label>
-              <Input v-model="editing.baseUrl" placeholder="https://api.example.com/v1" />
+
+            <div class="space-y-1">
+              <span class="lt-label">API 地址(Base URL)</span>
+              <Input
+                v-model="editing.baseUrl"
+                class="lt-num"
+                placeholder="https://api.example.com/v1"
+              />
               <div v-if="urlHint" class="text-[11px] text-muted-foreground">{{ urlHint }}</div>
             </div>
-            <div class="space-y-1.5">
-              <Label class="text-xs text-muted-foreground"
-                >模型(可输入,或从候选/在线列表选择)</Label
-              >
+
+            <div class="space-y-1">
+              <span class="lt-label">模型</span>
               <div class="flex items-start gap-2">
                 <div class="min-w-0 flex-1">
                   <ModelCombobox
@@ -636,7 +764,7 @@ function setTemperature(v: number | number[]) {
                 <Button
                   variant="outline"
                   size="sm"
-                  class="h-9 shrink-0 text-xs"
+                  class="h-9 shrink-0"
                   :disabled="modelLoading"
                   @click="fetchModels"
                 >
@@ -644,105 +772,129 @@ function setTemperature(v: number | number[]) {
                   {{ modelLoading ? "获取中…" : "在线获取" }}
                 </Button>
               </div>
-              <div v-if="modelErr" class="text-destructive text-[11px]">{{ modelErr }}</div>
+              <div v-if="modelErr" class="text-[11px] text-destructive">{{ modelErr }}</div>
               <div v-else-if="modelOptions.length" class="text-[11px] text-muted-foreground">
-                {{ modelOptions.length }} 个候选模型
+                {{ modelOptions.length }} 个候选模型,可直接输入未列出的模型名
               </div>
             </div>
-            <div v-if="editing.provider !== 'ollama'" class="space-y-1.5">
-              <Label class="text-xs text-muted-foreground">API Key</Label>
+
+            <div v-if="editing.provider !== 'ollama'" class="space-y-1">
+              <span class="lt-label">API Key</span>
               <Input
                 v-model="editing.apiKey"
                 type="password"
+                class="lt-num"
                 placeholder="sk-…"
                 autocomplete="off"
               />
             </div>
+
             <div class="space-y-1.5">
-              <Label class="text-xs text-muted-foreground">
-                Temperature(0 = 更稳定,1 = 更有创造性)· 当前 {{ editing.temperature.toFixed(1) }}
-              </Label>
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="lt-label">Temperature</span>
+                <span class="lt-num text-[11px] text-muted-foreground">
+                  {{ editing.temperature.toFixed(1) }} · 越低越稳定
+                </span>
+              </div>
               <Slider
                 :model-value="[editing.temperature]"
                 :min="0"
                 :max="2"
                 :step="0.1"
-                class="w-64"
+                class="w-full max-w-64"
                 @update:model-value="setTemperature"
               />
             </div>
-            <div class="flex items-center gap-2">
+
+            <div class="flex items-center gap-2 pt-0.5">
               <Button size="sm" @click="saveProfile">保存此配置</Button>
               <Button variant="ghost" size="sm" @click="editing = null">取消</Button>
             </div>
           </div>
 
-          <div v-else>
-            <Button variant="outline" @click="newProfile"><Plus />新增配置</Button>
+          <div v-else class="mt-3">
+            <Button variant="outline" size="sm" @click="newProfile"><Plus />新增配置</Button>
           </div>
 
-          <h2 class="mt-2 text-[13px] font-semibold tracking-wide text-muted-foreground">
-            通用设置
-          </h2>
-
-          <div class="space-y-1.5">
-            <Label class="text-xs text-muted-foreground">划词热键</Label>
-            <Input
-              v-model="settings.hotkey"
-              class="max-w-60"
-              placeholder="如 alt+q / ctrl+shift+t / f9"
-            />
+          <!-- 通用设置 -->
+          <div class="mt-7 flex items-center gap-2">
+            <span class="lt-section">通用设置</span>
           </div>
 
-          <div class="space-y-1.5">
-            <Label class="text-xs text-muted-foreground"
-              >截图翻译热键(框选屏幕区域识别并翻译)</Label
-            >
-            <Input
-              v-model="settings.captureHotkey"
-              class="max-w-60"
-              placeholder="如 alt+x / ctrl+shift+s"
-            />
+          <div class="mt-1">
+            <div class="flex items-center justify-between gap-4 border-b border-border/60 py-2.5">
+              <div>
+                <div class="text-sm">划词热键</div>
+                <div class="text-xs text-muted-foreground">选中文字后按下,自动复制并翻译</div>
+              </div>
+              <Input v-model="settings.hotkey" class="lt-num h-8 w-44 text-center text-xs" />
+            </div>
+
+            <div class="flex items-center justify-between gap-4 border-b border-border/60 py-2.5">
+              <div>
+                <div class="text-sm">截图翻译热键</div>
+                <div class="text-xs text-muted-foreground">框选屏幕区域,OCR 识别后翻译</div>
+              </div>
+              <Input v-model="settings.captureHotkey" class="lt-num h-8 w-44 text-center text-xs" />
+            </div>
+
+            <div class="flex items-center justify-between gap-4 border-b border-border/60 py-2.5">
+              <div>
+                <div class="text-sm">启用划词热键</div>
+                <div class="text-xs text-muted-foreground">也可在托盘菜单里临时停用</div>
+              </div>
+              <Switch v-model="settings.hotkeyEnabled" @update:model-value="persist(true)" />
+            </div>
+
+            <div class="flex items-center justify-between gap-4 border-b border-border/60 py-2.5">
+              <div>
+                <div class="text-sm">输入即译</div>
+                <div class="text-xs text-muted-foreground">停止输入 0.8 秒后自动翻译</div>
+              </div>
+              <Switch v-model="settings.autoTranslate" @update:model-value="persist(true)" />
+            </div>
+
+            <div class="flex items-center justify-between gap-4 border-b border-border/60 py-2.5">
+              <div>
+                <div class="text-sm">弹卡自动复制译文</div>
+                <div class="text-xs text-muted-foreground">划词翻译完成后直接进剪贴板</div>
+              </div>
+              <Switch v-model="settings.autoCopy" @update:model-value="persist(true)" />
+            </div>
+
+            <div class="flex items-center justify-between gap-4 border-b border-border/60 py-2.5">
+              <div>
+                <div class="text-sm">开机自启</div>
+                <div class="text-xs text-muted-foreground">启动后常驻托盘,不打开主窗口</div>
+              </div>
+              <Switch v-model="settings.autostart" @update:model-value="persist(true)" />
+            </div>
+
+            <div class="flex flex-col gap-2 border-b border-border/60 py-3">
+              <div>
+                <div class="text-sm">默认翻译方向</div>
+                <div class="text-xs text-muted-foreground">划词弹卡与主窗口共用同一方向</div>
+              </div>
+              <TranslateDirection :settings="settings" @change="persist(true)" />
+            </div>
+
+            <div class="flex flex-col gap-1.5 py-3">
+              <div>
+                <div class="text-sm">附加翻译要求</div>
+                <div class="text-xs text-muted-foreground">写进系统提示词,可留空</div>
+              </div>
+              <Textarea
+                v-model="settings.customPrompt"
+                :rows="2"
+                class="max-w-xl resize-none"
+                placeholder="例如:术语按 XX 译法;语气保持正式"
+              />
+            </div>
           </div>
 
-          <div class="flex items-center gap-2.5">
-            <Switch v-model="settings.hotkeyEnabled" @update:model-value="persist(true)" />
-            <span class="text-sm">启用划词热键(临时停用可在托盘菜单操作)</span>
-          </div>
-
-          <div class="flex items-center gap-2.5">
-            <Switch v-model="settings.autoTranslate" @update:model-value="persist(true)" />
-            <span class="text-sm">输入即译(停止输入 0.8 秒后自动翻译)</span>
-          </div>
-
-          <div class="space-y-1.5">
-            <Label class="text-xs text-muted-foreground">默认翻译方向(划词弹卡与主窗口共用)</Label>
-            <TranslateDirection :settings="settings" @change="persist(true)" />
-          </div>
-
-          <div class="space-y-1.5">
-            <Label class="text-xs text-muted-foreground">附加翻译要求(可选,写进系统提示词)</Label>
-            <Textarea
-              v-model="settings.customPrompt"
-              :rows="2"
-              class="max-w-xl resize-none"
-              placeholder="例如:术语按 XX 译法;语气保持正式"
-            />
-          </div>
-
-          <div class="flex items-center gap-2.5">
-            <Switch v-model="settings.autoCopy" @update:model-value="persist(true)" />
-            <span class="text-sm">划词弹卡自动复制译文</span>
-          </div>
-
-          <div class="flex items-center gap-2.5">
-            <Switch v-model="settings.autostart" @update:model-value="persist(true)" />
-            <span class="text-sm">开机自启(启动后常驻托盘)</span>
-          </div>
-
-          <div class="flex items-center gap-3">
+          <div class="mt-4 flex items-center gap-3">
             <Button size="sm" @click="persist">保存设置</Button>
-            <span v-if="saveErr" class="text-destructive text-xs">{{ saveErr }}</span>
+            <span v-if="saveErr" class="text-xs text-destructive">{{ saveErr }}</span>
           </div>
         </div>
       </TabsContent>

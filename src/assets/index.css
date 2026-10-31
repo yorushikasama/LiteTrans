@@ -1,58 +1,97 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* 深浅色跟随系统:不注册 .dark 类变体,直接用 v4 默认的 prefers-color-scheme */
+/* ──────────────────────────────────────────────────────────────
+   五音主题:宫商角徵羽
+   宫=土黄(主操作)  商=金白(结构)  角=木青(成功)
+   徵=火赤(错误)    羽=水墨(信息/深底)
+
+   中性色刻意偏羽(冷),不按「温暖=传统」的默认做法铺米黄纸底;
+   五色只承担语义状态与「调式」身份标识,不做装饰性渐变。
+   深浅色跟随系统,不注册 .dark 类变体。
+   ────────────────────────────────────────────────────────────── */
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.985 0.002 247.839);
-  --foreground: oklch(0.205 0.02 261.5);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.205 0.02 261.5);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.205 0.02 261.5);
-  --primary: oklch(0.546 0.215 262.881);
-  --primary-foreground: oklch(0.985 0.002 247.839);
-  --secondary: oklch(0.967 0.003 264.542);
-  --secondary-foreground: oklch(0.205 0.02 261.5);
-  --muted: oklch(0.967 0.003 264.542);
-  --muted-foreground: oklch(0.551 0.023 264.364);
-  --accent: oklch(0.951 0.014 262.416);
-  --accent-foreground: oklch(0.379 0.146 265.522);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.918 0.008 264.531);
-  --input: oklch(0.918 0.008 264.531);
-  --ring: oklch(0.546 0.215 262.881);
+  --radius: 0.5rem;
+
+  /* 五音基色(浅色):--x 用于面/线,--x-ink 用于文字 */
+  --gong: oklch(0.8 0.13 82);
+  --gong-ink: oklch(0.5 0.11 68);
+  --shang: oklch(0.7 0.012 250);
+  --shang-ink: oklch(0.45 0.012 250);
+  --jue: oklch(0.7 0.1 168);
+  --jue-ink: oklch(0.46 0.09 168);
+  --zhi: oklch(0.58 0.18 28);
+  --zhi-ink: oklch(0.52 0.17 28);
+  --yu: oklch(0.56 0.1 258);
+  --yu-ink: oklch(0.44 0.1 258);
+
+  --background: oklch(0.975 0.004 258);
+  --foreground: oklch(0.215 0.015 258);
+  --card: oklch(0.995 0.002 258);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.995 0.002 258);
+  --popover-foreground: var(--foreground);
+  --primary: var(--gong);
+  --primary-foreground: oklch(0.2 0.016 258);
+  --secondary: oklch(0.955 0.006 258);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.955 0.006 258);
+  --muted-foreground: oklch(0.495 0.014 258);
+  --accent: oklch(0.947 0.014 88);
+  --accent-foreground: oklch(0.28 0.02 258);
+  --destructive: var(--zhi-ink);
+  --border: oklch(0.9 0.008 258);
+  --input: oklch(0.9 0.008 258);
+  --ring: var(--gong-ink);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: oklch(0.175 0.014 261.7);
-    --foreground: oklch(0.928 0.006 264.531);
-    --card: oklch(0.23 0.016 262.2);
-    --card-foreground: oklch(0.928 0.006 264.531);
-    --popover: oklch(0.23 0.016 262.2);
-    --popover-foreground: oklch(0.928 0.006 264.531);
-    --primary: oklch(0.62 0.208 265.1);
-    --primary-foreground: oklch(0.985 0.002 247.839);
-    --secondary: oklch(0.294 0.021 262.4);
-    --secondary-foreground: oklch(0.928 0.006 264.531);
-    --muted: oklch(0.294 0.021 262.4);
-    --muted-foreground: oklch(0.709 0.014 261.9);
-    --accent: oklch(0.294 0.021 262.4);
-    --accent-foreground: oklch(0.928 0.006 264.531);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 14%);
-    --ring: oklch(0.62 0.208 265.1);
+    --gong: oklch(0.8 0.125 82);
+    --gong-ink: oklch(0.845 0.11 84);
+    --shang: oklch(0.34 0.01 258);
+    --shang-ink: oklch(0.78 0.008 258);
+    --jue: oklch(0.74 0.105 168);
+    --jue-ink: oklch(0.8 0.1 168);
+    --zhi: oklch(0.68 0.17 28);
+    --zhi-ink: oklch(0.73 0.16 28);
+    --yu: oklch(0.72 0.09 250);
+    --yu-ink: oklch(0.78 0.085 250);
+
+    --background: oklch(0.185 0.012 258);
+    --foreground: oklch(0.93 0.004 258);
+    --card: oklch(0.222 0.012 258);
+    --card-foreground: var(--foreground);
+    --popover: oklch(0.235 0.012 258);
+    --popover-foreground: var(--foreground);
+    --primary: var(--gong);
+    --primary-foreground: oklch(0.2 0.016 258);
+    --secondary: oklch(0.268 0.012 258);
+    --secondary-foreground: var(--foreground);
+    --muted: oklch(0.268 0.012 258);
+    --muted-foreground: oklch(0.795 0.01 258);
+    --accent: oklch(0.295 0.018 88);
+    --accent-foreground: oklch(0.93 0.004 258);
+    --destructive: var(--zhi-ink);
+    --border: oklch(1 0 0 / 11%);
+    --input: oklch(1 0 0 / 16%);
+    --ring: var(--gong);
   }
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans:
+    "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui,
+    sans-serif;
+  --font-mono:
+    "Cascadia Mono", "Cascadia Code", Consolas, "SFMono-Regular", ui-monospace, monospace;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -71,51 +110,129 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* 五音 */
+  --color-gong: var(--gong);
+  --color-gong-ink: var(--gong-ink);
+  --color-shang: var(--shang);
+  --color-shang-ink: var(--shang-ink);
+  --color-jue: var(--jue);
+  --color-jue-ink: var(--jue-ink);
+  --color-zhi: var(--zhi);
+  --color-zhi-ink: var(--zhi-ink);
+  --color-yu: var(--yu);
+  --color-yu-ink: var(--yu-ink);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body {
+    height: 100%;
+  }
   body {
     @apply bg-background text-foreground;
-    font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-  /* 弹卡窗口透明底,让系统亚克力透出来 */
-  body[data-page="popup"] {
+  ::selection {
+    background: color-mix(in oklab, var(--gong) 60%, transparent);
+    color: var(--primary-foreground);
+  }
+  /* 弹卡/框选窗口透明底,让系统亚克力与屏幕内容透出来 */
+  body[data-page="popup"],
+  body[data-page="capture"] {
     background: transparent;
   }
+  /* 数字读数统一等宽,避免跳动 */
+  .lt-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  .lt-wordmark {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+  }
+  .lt-label {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--muted-foreground);
+  }
+  .lt-section {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--shang-ink);
+  }
 }
 
-/* 细滚动条 */
+/* ── 弹卡 ── */
+/* 亚克力要靠半透明底透出来,直接用带 alpha 的构件色而非 bg-popover/92
+   (v4 对 CSS 变量色叠透明度会走 color-mix,结果偏实) */
+.lt-card {
+  background: color-mix(in oklab, var(--popover) 88%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  .lt-card {
+    background: color-mix(in oklab, var(--popover) 82%, transparent);
+  }
+}
+
+/* shadcn 的 Textarea 默认 field-sizing-content(随内容长高),
+   主窗口翻译页要它填满分栏,这里定向关掉 */
+[data-slot="textarea"].field-sizing-fixed {
+  field-sizing: fixed;
+}
+
+/* 细滚动条:中性,悬停转宫色 */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in oklab, var(--muted-foreground) 35%, transparent);
-  border-radius: 4px;
+  background: color-mix(in oklab, var(--muted-foreground) 28%, transparent);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 6px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+  background: color-mix(in oklab, var(--gong-ink) 60%, transparent);
+  background-clip: content-box;
 }
 
-/* 流式输出光标 */
+/* 流式输出光标:宫色方块 */
 @keyframes lt-blink {
   50% {
     opacity: 0;
   }
 }
 .lt-cursor {
-  color: var(--primary);
-  animation: lt-blink 1s steps(1) infinite;
+  display: inline-block;
+  width: 0.45em;
+  height: 0.95em;
+  margin-left: 1px;
+  vertical-align: -0.1em;
+  background: var(--gong);
+  animation: lt-blink 1.05s steps(1) infinite;
 }
 
-/* 弹卡入场动画 */
+/* 弹卡入场 */
 @keyframes lt-pop {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.985);
+    transform: translateY(5px) scale(0.992);
   }
   to {
     opacity: 1;
@@ -123,5 +240,100 @@
   }
 }
 .lt-pop {
-  animation: lt-pop 0.16s ease-out;
+  animation: lt-pop 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── 截图框选层 ── */
+.lt-cap-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: oklch(0.16 0.012 258 / 0.34);
+  cursor: crosshair;
+  user-select: none;
+  transition: opacity 0.12s ease-out;
+}
+
+.lt-cap-hint {
+  position: fixed;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid oklch(1 0 0 / 0.14);
+  background: oklch(0.2 0.014 258 / 0.94);
+  color: oklch(0.94 0.004 258);
+  font: 12px var(--font-sans);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.lt-cap-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gong);
+}
+
+.lt-cap-key {
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid oklch(1 0 0 / 0.2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: oklch(0.84 0.004 258);
+}
+
+.lt-cap-sel {
+  position: fixed;
+  display: none;
+  z-index: 20;
+  border: 1px solid var(--gong);
+  box-shadow:
+    0 0 0 100000px oklch(0.16 0.012 258 / 0.34),
+    inset 0 0 0 1px oklch(1 0 0 / 0.12);
+  pointer-events: none;
+}
+
+.lt-cap-size {
+  position: fixed;
+  display: none;
+  z-index: 30;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--gong);
+  color: oklch(0.19 0.02 258);
+  font-size: 10px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* 状态切换的轻淡入:用于译文区/列表项 */
+@keyframes lt-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.lt-fade {
+  animation: lt-fade 0.16s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

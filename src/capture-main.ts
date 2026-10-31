@@ -1,31 +1,24 @@
 // 截图翻译框选层:全屏遮罩 + 拖拽选框,纯 TS 无框架
+// 配色跟随五音主题:选框用宫色,尺寸读数用等宽字
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import "./assets/index.css";
 
 const root = document.getElementById("capture")!;
 
-// 遮罩(带巨大 box-shadow 挖洞效果由选框实现)+ 提示 + 选框
 const overlay = document.createElement("div");
-overlay.style.cssText =
-  "position:fixed;inset:0;background:rgba(0,0,0,0.28);cursor:crosshair;user-select:none;z-index:10;";
+overlay.className = "lt-cap-overlay";
 
 const hint = document.createElement("div");
-hint.textContent = "拖拽框选要翻译的区域 · Esc 取消";
-hint.style.cssText =
-  "position:fixed;top:24px;left:50%;transform:translateX(-50%);z-index:30;" +
-  "background:rgba(15,23,42,0.85);color:#e2e8f0;font:13px 'Segoe UI','Microsoft YaHei',sans-serif;" +
-  "padding:8px 18px;border-radius:8px;pointer-events:none;";
+hint.className = "lt-cap-hint";
+hint.innerHTML =
+  '<span class="lt-cap-dot"></span>拖拽框选要翻译的区域<span class="lt-cap-key">Esc</span>取消';
 
 const sel = document.createElement("div");
-sel.style.cssText =
-  "position:fixed;border:1px solid #22d3ee;background:transparent;display:none;z-index:20;" +
-  "box-shadow:0 0 0 100000px rgba(0,0,0,0.28);pointer-events:none;";
+sel.className = "lt-cap-sel";
 
 const sizeLabel = document.createElement("div");
-sizeLabel.style.cssText =
-  "position:fixed;display:none;z-index:30;background:#0ea5e9;color:#fff;" +
-  "font:11px 'Segoe UI',sans-serif;padding:2px 8px;border-radius:4px;pointer-events:none;";
+sizeLabel.className = "lt-cap-size lt-num";
 
 root.append(overlay, hint, sel, sizeLabel);
 
@@ -37,7 +30,9 @@ function reset() {
   dragging = false;
   sel.style.display = "none";
   sizeLabel.style.display = "none";
-  overlay.style.background = "rgba(0,0,0,0.28)";
+  overlay.style.display = "block";
+  hint.style.display = "flex";
+  overlay.style.opacity = "1";
 }
 
 window.addEventListener("mousedown", (e) => {
@@ -45,7 +40,7 @@ window.addEventListener("mousedown", (e) => {
   dragging = true;
   sx = e.clientX;
   sy = e.clientY;
-  overlay.style.background = "transparent";
+  overlay.style.opacity = "0";
 });
 
 window.addEventListener("mousemove", (e) => {
@@ -54,8 +49,18 @@ window.addEventListener("mousemove", (e) => {
   const y = Math.min(sy, e.clientY);
   const w = Math.abs(e.clientX - sx);
   const h = Math.abs(e.clientY - sy);
-  sel.style.cssText = `position:fixed;border:1px solid #22d3ee;display:block;z-index:20;box-shadow:0 0 0 100000px rgba(0,0,0,0.28);pointer-events:none;left:${x}px;top:${y}px;width:${w}px;height:${h}px;`;
-  sizeLabel.style.cssText = `position:fixed;display:block;z-index:30;background:#0ea5e9;color:#fff;font:11px 'Segoe UI',sans-serif;padding:2px 8px;border-radius:4px;pointer-events:none;left:${x}px;top:${y + h + 6}px;`;
+  Object.assign(sel.style, {
+    display: "block",
+    left: `${x}px`,
+    top: `${y}px`,
+    width: `${w}px`,
+    height: `${h}px`,
+  });
+  Object.assign(sizeLabel.style, {
+    display: "block",
+    left: `${x}px`,
+    top: `${y + h + 6}px`,
+  });
   sizeLabel.textContent = `${Math.round(w)} × ${Math.round(h)}`;
 });
 

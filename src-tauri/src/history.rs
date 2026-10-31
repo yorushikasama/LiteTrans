@@ -14,7 +14,10 @@ pub struct HistoryItem {
     /// 提示词目标语言名或"词典查询"
     pub direction: String,
     pub dict: bool,
+    /// 配置名(展示用)
     pub profile: String,
+    /// 配置 id:前端据此显示该条记录所属的「调」,旧记录为空
+    pub profile_id: String,
 }
 
 const MAX_ITEMS: usize = 50;

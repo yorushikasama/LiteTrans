@@ -141,6 +141,7 @@ pub async fn translate(
                     direction,
                     dict,
                     profile: p.name.clone(),
+                    profile_id: p.id.clone(),
                 },
             );
             let _ = on_event.send(StreamMsg::Done { text: full });

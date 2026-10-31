@@ -79,6 +79,8 @@ export interface HistoryItem {
   direction: string;
   dict: boolean;
   profile: string;
+  /** 配置 id:用于显示所属「调」,旧记录为空 */
+  profileId?: string;
 }
 
 export function genId(): string {

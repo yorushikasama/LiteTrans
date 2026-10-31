@@ -6,6 +6,24 @@
 
 前端 UI 为 shadcn-vue(组件源码进仓库,基于 reka-ui 无头组件)+ Tailwind CSS v4 + Lucide 图标,深浅色跟随系统。组件已本地化,可自由修改 `src/components/ui/` 下任意实现。
 
+## 主题:宫商角徵羽
+
+五音对到功能语义上,不做装饰性堆叠(无米黄纸底、朱印、毛笔插画、渐变金字):
+
+| 五音 | 色相 | 承担的语义 |
+|---|---|---|
+| **宫** | 土黄 | 主操作、当前选中、流式光标、选框 |
+| **商** | 金白 | 结构线、分组标题、中性读数 |
+| **角** | 木青 | 成功、已复制、词典标记 |
+| **徵** | 火赤 | 错误、破坏性操作 |
+| **羽** | 水墨 | 信息、深色层、条目底色 |
+
+界面语汇是一块**调音台**:五根竖柱的立标(顶栏)、等宽字读数、发丝分隔线、按行展开的设置项。
+
+**调式身份**:每条模型配置按 id 派生一个「调」(宫调/商调/角调/徵调/羽调),设置列表、历史记录、翻译弹卡与托盘菜单显示同一个字,所以任何地方看到「商」都知道在用哪条配置。取模算法在 Rust(`settings::tone_index`)与 TS(`src/tones.ts`)两侧一致,各有一个断言测试锁住。
+
+所有颜色 token 在 `src/assets/index.css`,用 OKLCH;深色模式的次要文字对比度 ≥4.5:1(有脚本核算过)。
+
 ## 功能
 
 - **划词翻译**:选中文字后按全局热键(默认 `Alt+Q`),自动复制并弹卡翻译;弹卡启动 30s 后后台预热,首次划词零冷启动
@@ -26,6 +44,9 @@
 │  ├─ App.vue              主窗口:翻译 / 历史 / 设置
 │  ├─ Popup.vue            划词弹卡
 │  ├─ components/          LanguageSelect / ModelCombobox / TranslateDirection
+│  ├─ components/ToneMark.vue   五音立标(顶栏,高亮当前调)
+│  ├─ components/ToneChip.vue   调式标签(单个宫/商/角/徵/羽)
+│  ├─ tones.ts             调式派生算法(与 Rust settings::tone_index 一致)
 │  ├─ components/ui/       shadcn-vue 组件源码(本地化,可自由修改)
 │  └─ assets/index.css     Tailwind v4 主题(深浅色跟随系统)
 ├─ src-tauri/src/          Rust 后端

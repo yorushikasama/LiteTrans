@@ -1,14 +1,15 @@
 # Generate LiteTrans app icon source (1024x1024 PNG).
 #
-# Mark: Latin "A" above, Chinese "文" below, split by a two-headed arrow.
-# Alternate scripts side by side is the one visual that says "translation"
-# without reading as music, an audio equalizer, or a generic letter tile.
+# Mark: a large ink "文" on a gong-ochre plate, with a small Latin "A" tucked
+# into the lower-left corner. Primary + secondary reads as "this turns into
+# that" in one glance; two equally weighted glyphs (the previous version)
+# read as two unrelated symbols sharing a tile.
 #
-# Layout is stacked, not side by side: at 16px (the tray icon) two glyphs
-# sharing a row collapse into noise, while stacked glyphs keep a clear
-# silhouette. The arrow stays a single horizontal element for the same reason.
+# Color: the plate IS the app's primary color (gong ochre, --gong in the theme)
+# instead of the dark plate every version before this used. A warm solid fill
+# is what makes an icon pop on both light and dark taskbars, and it matches
+# the accent the app already uses for primary actions.
 #
-# Colors come from the app's five-tone palette: shang silver and gong ochre.
 # ASCII-only on purpose: PowerShell 5.1 misparses UTF-8 scripts without BOM.
 Add-Type -AssemblyName System.Drawing
 
@@ -18,7 +19,7 @@ $g = [System.Drawing.Graphics]::FromImage($bmp)
 $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
 $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
 
-# Ink plate: rounded square, Windows tile proportions
+# Rounded-square plate, Windows tile proportions
 $pad = 24
 $rect = New-Object System.Drawing.Rectangle($pad, $pad, ($size - 2 * $pad), ($size - 2 * $pad))
 $radius = 226
@@ -30,95 +31,101 @@ $plate.AddArc(($rect.Right - $d), ($rect.Bottom - $d), $d, $d, 0, 90)
 $plate.AddArc($rect.X, ($rect.Bottom - $d), $d, $d, 90, 90)
 $plate.CloseFigure()
 
+# Gong ochre, with a slight vertical falloff so the tile has body without
+# turning into a glossy button
 $bg = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
     $rect,
-    [System.Drawing.Color]::FromArgb(255, 31, 39, 52),
-    [System.Drawing.Color]::FromArgb(255, 18, 24, 34),
+    [System.Drawing.Color]::FromArgb(255, 231, 181, 81),
+    [System.Drawing.Color]::FromArgb(255, 205, 152, 55),
     90.0)
 $g.FillPath($bg, $plate)
 
-# Hairline inner edge so the tile holds on both light and dark taskbars
-$edgePen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(46, 255, 255, 255), 3)
-$eInset = $pad + 6
-$eR = $radius - 6
-$ePath = New-Object System.Drawing.Drawing2D.GraphicsPath
-$ePath.AddArc($eInset, $eInset, ($eR * 2), ($eR * 2), 180, 90)
-$ePath.AddArc(($size - $eInset - $eR * 2), $eInset, ($eR * 2), ($eR * 2), 270, 90)
-$ePath.AddArc(($size - $eInset - $eR * 2), ($size - $eInset - $eR * 2), ($eR * 2), ($eR * 2), 0, 90)
-$ePath.AddArc($eInset, ($size - $eInset - $eR * 2), ($eR * 2), ($eR * 2), 90, 90)
-$ePath.CloseFigure()
-$g.DrawPath($edgePen, $ePath)
-$edgePen.Dispose(); $ePath.Dispose()
+$inkColor = [System.Drawing.Color]::FromArgb(255, 26, 33, 45)
+$inkSoft = [System.Drawing.Color]::FromArgb(255, 26, 33, 45)
 
-$shangColor = [System.Drawing.Color]::FromArgb(255, 200, 209, 222)
-$gongColor = [System.Drawing.Color]::FromArgb(255, 215, 169, 88)
-$arrowColor = [System.Drawing.Color]::FromArgb(255, 152, 165, 184)
-
-# GenericTypographic measures the glyph's ink, not the padded em box, so the
-# two letters can be centered by their actual drawn extent.
 $fmtTight = [System.Drawing.StringFormat]::GenericTypographic
 $fmtTight.FormatFlags = $fmtTight.FormatFlags -bor [System.Drawing.StringFormatFlags]::MeasureTrailingSpaces
 $fmt = New-Object System.Drawing.StringFormat
 $fmt.Alignment = [System.Drawing.StringAlignment]::Center
 $fmt.LineAlignment = [System.Drawing.StringAlignment]::Center
 
-$fontSize = 380
-$fontA = New-Object System.Drawing.Font('Segoe UI', $fontSize, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
-$fontWen = New-Object System.Drawing.Font('Microsoft YaHei UI', $fontSize, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
-
-$szA = $g.MeasureString('A', $fontA, 2000, $fmtTight)
+# Primary glyph: 文, sized to dominate. Inset from the plate edge so the
+# silhouette is a rounded square of color, not a square jammed with ink.
+$bigSize = 452
+$fontWen = New-Object System.Drawing.Font('Microsoft YaHei UI', $bigSize, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
 $szWen = $g.MeasureString([string][char]0x6587, $fontWen, 2000, $fmtTight)
 
-# Stack: A over arrow over 文, each centered on the plate's vertical axis.
-# Optical weight: the arrow sits closer to the lower glyph so the block reads
-# as "A becomes 文" rather than as two unrelated marks.
-$cx = $size / 2
-$cyA = 322
-$arrowY = 534
-$cyWen = 762
+# 文 sits right-of-center and slightly high: the small A takes the lower-left
+$wenCx = 588
+$wenCy = 408
+$boxWen = New-Object System.Drawing.RectangleF(($wenCx - $szWen.Width / 2), ($wenCy - $szWen.Height / 2), $szWen.Width, $szWen.Height)
+$inkBrush = New-Object System.Drawing.SolidBrush($inkColor)
+$g.DrawString([string][char]0x6587, $fontWen, $inkBrush, $boxWen, $fmt)
+$inkBrush.Dispose()
 
-$boxA = New-Object System.Drawing.RectangleF(($cx - $szA.Width / 2), ($cyA - $szA.Height / 2), $szA.Width, $szA.Height)
-$boxWen = New-Object System.Drawing.RectangleF(($cx - $szWen.Width / 2), ($cyWen - $szWen.Height / 2), $szWen.Width, $szWen.Height)
+# Secondary glyph: A in a small ink chip, bottom-left. The chip is a solid
+# shape rather than bare letterform so it survives downscaling and reads as
+# a deliberate counterweight to the big 文.
+$chipSize = 232
+$chipX = 196
+$chipY = 668
+$chipR = 58
+$chip = New-Object System.Drawing.Drawing2D.GraphicsPath
+$chip.AddArc($chipX, $chipY, ($chipR * 2), ($chipR * 2), 180, 90)
+$chip.AddArc(($chipX + $chipSize - $chipR * 2), $chipY, ($chipR * 2), ($chipR * 2), 270, 90)
+$chip.AddArc(($chipX + $chipSize - $chipR * 2), ($chipY + $chipSize - $chipR * 2), ($chipR * 2), ($chipR * 2), 0, 90)
+$chip.AddArc($chipX, ($chipY + $chipSize - $chipR * 2), ($chipR * 2), ($chipR * 2), 90, 90)
+$chip.CloseFigure()
+$chipBrush = New-Object System.Drawing.SolidBrush($inkSoft)
+$g.FillPath($chipBrush, $chip)
+$chipBrush.Dispose()
 
-$brushA = New-Object System.Drawing.SolidBrush($shangColor)
-$brushWen = New-Object System.Drawing.SolidBrush($gongColor)
-$g.DrawString('A', $fontA, $brushA, $boxA, $fmt)
-$g.DrawString([string][char]0x6587, $fontWen, $brushWen, $boxWen, $fmt)
-$brushA.Dispose(); $brushWen.Dispose()
+$smallSize = 168
+$fontA = New-Object System.Drawing.Font('Segoe UI', $smallSize, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+$szA = $g.MeasureString('A', $fontA, 2000, $fmtTight)
+$boxA = New-Object System.Drawing.RectangleF(
+    ($chipX + $chipSize / 2 - $szA.Width / 2),
+    ($chipY + $chipSize / 2 - $szA.Height / 2),
+    $szA.Width, $szA.Height)
+$lightBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 240, 205, 138))
+$g.DrawString('A', $fontA, $lightBrush, $boxA, $fmt)
+$lightBrush.Dispose()
 
-# Two-headed arrow: bidirectional translation, not one-way.
-# Width is clamped to the wider glyph so the block keeps one silhouette.
-$blockW = [Math]::Max($szA.Width, $szWen.Width)
-$ax1 = $cx - $blockW / 2 - 18
-$ax2 = $cx + $blockW / 2 + 18
-$shaft = 22
-$headLen = 52
-$headHalf = 38
+# Two short swap arrows in the gap to the right of the A chip, stacked:
+# upper points right (toward 文), lower points left (back toward A).
+# Kept out of the 文 捺 stroke so nothing overlaps.
+$arrowBrush = New-Object System.Drawing.SolidBrush($inkSoft)
+$aw = 132
+$ah = 16
+$ax1 = 496
+$ax2 = 676
+$ay1 = 700
+$ay2 = 762
+$hLen = 30
+$hHalf = 22
 
-$arrowBrush = New-Object System.Drawing.SolidBrush($arrowColor)
-$shaftRect = New-Object System.Drawing.RectangleF(($ax1 + $headLen), ($arrowY - $shaft / 2), (($ax2 - $ax1) - 2 * $headLen), $shaft)
-$g.FillRectangle($arrowBrush, $shaftRect)
-
-$headL = New-Object System.Drawing.Drawing2D.GraphicsPath
-$headL.AddPolygon(@(
-    (New-Object System.Drawing.PointF($ax1, $arrowY)),
-    (New-Object System.Drawing.PointF(($ax1 + $headLen), ($arrowY - $headHalf))),
-    (New-Object System.Drawing.PointF(($ax1 + $headLen), ($arrowY + $headHalf)))
+# upper arrow: shaft + right head
+$g.FillRectangle($arrowBrush, (New-Object System.Drawing.RectangleF($ax1, ($ay1 - $ah / 2), ($ax2 - $ax1 - $hLen), $ah)))
+$p1 = New-Object System.Drawing.Drawing2D.GraphicsPath
+$p1.AddPolygon(@(
+    (New-Object System.Drawing.PointF($ax2, $ay1)),
+    (New-Object System.Drawing.PointF(($ax2 - $hLen), ($ay1 - $hHalf))),
+    (New-Object System.Drawing.PointF(($ax2 - $hLen), ($ay1 + $hHalf)))
 ))
-$g.FillPath($arrowBrush, $headL)
-$headL.Dispose()
+$g.FillPath($arrowBrush, $p1); $p1.Dispose()
 
-$headR = New-Object System.Drawing.Drawing2D.GraphicsPath
-$headR.AddPolygon(@(
-    (New-Object System.Drawing.PointF($ax2, $arrowY)),
-    (New-Object System.Drawing.PointF(($ax2 - $headLen), ($arrowY - $headHalf))),
-    (New-Object System.Drawing.PointF(($ax2 - $headLen), ($arrowY + $headHalf)))
+# lower arrow: shaft + left head
+$g.FillRectangle($arrowBrush, (New-Object System.Drawing.RectangleF(($ax1 + $hLen), ($ay2 - $ah / 2), ($ax2 - $ax1 - $hLen), $ah)))
+$p2 = New-Object System.Drawing.Drawing2D.GraphicsPath
+$p2.AddPolygon(@(
+    (New-Object System.Drawing.PointF($ax1, $ay2)),
+    (New-Object System.Drawing.PointF(($ax1 + $hLen), ($ay2 - $hHalf))),
+    (New-Object System.Drawing.PointF(($ax1 + $hLen), ($ay2 + $hHalf)))
 ))
-$g.FillPath($arrowBrush, $headR)
-$headR.Dispose()
+$g.FillPath($arrowBrush, $p2); $p2.Dispose()
 $arrowBrush.Dispose()
 
 $bmp.Save('D:\LiteTrans\app-icon.png', [System.Drawing.Imaging.ImageFormat]::Png)
 $g.Dispose(); $bg.Dispose(); $plate.Dispose(); $bmp.Dispose()
-$fontA.Dispose(); $fontWen.Dispose(); $fmt.Dispose(); $fmtTight.Dispose()
+$fontWen.Dispose(); $fontA.Dispose(); $fmt.Dispose(); $fmtTight.Dispose(); $chip.Dispose()
 Write-Output "icon written: D:\LiteTrans\app-icon.png"

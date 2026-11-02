@@ -422,15 +422,19 @@ function setTemperature(v: number | number[]) {
         </div>
 
         <!-- 导航 -->
+        <!-- TabsList 自带 w-fit + inline-flex,在纵向布局里会收缩到内容宽度;
+             TabsTrigger 自带 flex-1(flex-basis:0%),在 flex-col 里会覆盖 h-9。
+             两个都要显式顶掉,否则实测得到 72x27.5 的窄条(-- 而不是预期
+             的整栏 36px 高),这是侧栏最显眼的错位。 -->
         <TabsList
-          class="mx-2 flex h-auto flex-col items-stretch gap-0.5 bg-transparent p-0"
+          class="mx-2 !flex !h-auto !w-auto flex-col gap-0.5 bg-transparent p-0"
           aria-label="主导航"
         >
           <TabsTrigger
             v-for="n in NAV"
             :key="n.value"
             :value="n.value"
-            class="group h-9 w-full justify-start gap-2.5 rounded-md border-0 px-2.5 text-[13px] font-normal text-muted-foreground data-[state=active]:bg-secondary data-[state=active]:font-medium data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            class="group !h-9 !w-full items-center !flex-none justify-start gap-2.5 rounded-md border-0 px-2.5 text-[13px] font-normal text-muted-foreground data-[state=active]:bg-secondary data-[state=active]:font-medium data-[state=active]:text-foreground data-[state=active]:shadow-none"
           >
             <component :is="n.icon" class="size-4 shrink-0" />
             {{ n.label }}
@@ -478,7 +482,11 @@ function setTemperature(v: number | number[]) {
             </div>
 
             <!-- 顶部:方向 + 热键 -->
-            <div class="flex shrink-0 flex-nowrap items-center gap-3 px-5 py-2.5">
+            <!-- 宽屏 nowrap 保持单行(工具行折行会把版面撑高,实测曾达 99px);
+                 窄屏必须允许换行,否则 640px 最小宽度下内容横向溢出 499>371 -->
+            <div
+              class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2 lg:flex-nowrap lg:px-5"
+            >
               <TranslateDirection :settings="settings" @change="persist(true)" />
               <span class="flex-1"></span>
               <span class="lt-num hidden shrink-0 text-[11px] text-muted-foreground lg:inline">
@@ -513,9 +521,14 @@ function setTemperature(v: number | number[]) {
                 </span>
               </div>
 
-              <div ref="resultBox" class="min-h-0 flex-[1.15] overflow-y-auto px-5 py-3">
+              <div
+                ref="resultBox"
+                class="flex min-h-0 flex-[1.15] flex-col overflow-y-auto px-5 py-3"
+              >
                 <div v-if="errorMsg" class="text-sm leading-6 text-destructive">{{ errorMsg }}</div>
-                <!-- 空态即操作说明:把三种用法和各自的前置条件写清楚 -->
+                <!-- 空态即操作说明。容器用 h-full + 父级 flex 才能垂直居中;
+                     但它挂在 overflow-y-auto 里,100% 会解析成视口高度而撑破
+                     内容区(实测 500px 高盖住整个窗口),所以给父级加 flex。 -->
                 <div
                   v-else-if="!result"
                   class="flex h-full flex-col items-center justify-center gap-4 text-center"
@@ -573,12 +586,12 @@ function setTemperature(v: number | number[]) {
                 停止
               </Button>
               <span class="mx-1 h-4 w-px bg-border"></span>
-              <Button variant="ghost" size="icon-sm" title="粘贴剪贴板" @click="pasteFromClipboard">
+              <Button variant="ghost" size="icon" title="粘贴剪贴板" @click="pasteFromClipboard">
                 <ClipboardPaste />
               </Button>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 title="清空"
                 :disabled="!source.trim() && !result"
                 @click="clearAll"
@@ -587,7 +600,7 @@ function setTemperature(v: number | number[]) {
               </Button>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 title="复制译文"
                 :disabled="!result"
                 @click="copyResult"
@@ -597,7 +610,7 @@ function setTemperature(v: number | number[]) {
               </Button>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 :title="speaking ? '停止朗读' : '朗读'"
                 :disabled="!result && !source.trim()"
                 @click="speak"
@@ -623,8 +636,8 @@ function setTemperature(v: number | number[]) {
             <Button
               v-if="historyItems.length"
               variant="ghost"
-              size="xs"
-              class="text-muted-foreground"
+              size="sm"
+              class="h-7 text-muted-foreground"
               @click="clearHistory"
               >清空</Button
             >
@@ -702,16 +715,20 @@ function setTemperature(v: number | number[]) {
                   <Button size="sm" class="mt-3" @click="newProfile"><Plus />新增配置</Button>
                 </div>
 
-                <div v-else class="mt-2 -mx-2">
+                <!-- -mx-2 让配置行的悬停底色横向外扩;右侧那 8px 会算进容器
+                     宽度造成横向溢出(648>632),所以只外扩左侧 -->
+                <div v-else class="mt-2 -ml-2">
+                  <!-- 配置行:窄屏时操作按钮折到下一行,否则 640px 下
+                       固定宽度按钮组会把容器撑破(实测溢出 411>403) -->
                   <div
                     v-for="p in settings.profiles"
                     :key="p.id"
-                    class="flex items-start gap-3 rounded-md px-2 py-2.5 transition-colors"
+                    class="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-md px-2 py-2.5 transition-colors"
                     :class="p.id === settings.activeId && 'bg-gong/10'"
                   >
                     <ToneChip :id="p.id" :filled="p.id === settings.activeId" class="mt-0.5" />
 
-                    <div class="min-w-0 flex-1">
+                    <div class="min-w-0 flex-1 basis-48">
                       <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span class="text-[13px] font-medium">{{ p.name }}</span>
                         <span class="lt-num text-[10px] tracking-wider text-shang-ink uppercase">
@@ -724,9 +741,14 @@ function setTemperature(v: number | number[]) {
                           · 使用中
                         </span>
                       </div>
+                      <!-- 模型与地址分两行各自截断:写在同一行里时,内层 inline 的
+                           span 会把父级的 scrollWidth 撑开,truncate 失效
+                           (实测 640px 下 287>237 横向溢出) -->
                       <div class="lt-num truncate text-[11px] text-muted-foreground">
                         {{ p.model || "未指定模型" }}
-                        <span class="opacity-60">· {{ p.baseUrl || "预设地址" }}</span>
+                      </div>
+                      <div class="lt-num truncate text-[10px] text-muted-foreground/70">
+                        {{ p.baseUrl || "预设地址" }}
                       </div>
                       <div
                         v-if="testMsg[p.id]"
@@ -743,15 +765,28 @@ function setTemperature(v: number | number[]) {
                       <Button
                         v-if="p.id !== settings.activeId"
                         variant="ghost"
-                        size="xs"
+                        size="sm"
+                        class="h-7 px-2 text-xs"
                         @click="activateProfile(p.id)"
                         >启用</Button
                       >
-                      <Button variant="ghost" size="xs" @click="editProfile(p)">编辑</Button>
-                      <Button variant="ghost" size="xs" @click="testProfile(p)">测试</Button>
                       <Button
                         variant="ghost"
-                        size="icon-xs"
+                        size="sm"
+                        class="h-7 px-2 text-xs"
+                        @click="editProfile(p)"
+                        >编辑</Button
+                      >
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="h-7 px-2 text-xs"
+                        @click="testProfile(p)"
+                        >测试</Button
+                      >
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         class="text-muted-foreground hover:text-destructive"
                         title="删除"
                         @click="askDelete(p)"
@@ -929,6 +964,7 @@ function setTemperature(v: number | number[]) {
                       </div>
                     </div>
                     <Switch
+                      class="h-[22px] w-10"
                       v-model="settings.hotkeyEnabled"
                       aria-label="启用划词热键"
                       @update:model-value="persist(true)"
@@ -943,6 +979,7 @@ function setTemperature(v: number | number[]) {
                       </div>
                     </div>
                     <Switch
+                      class="h-[22px] w-10"
                       v-model="settings.autoTranslate"
                       aria-label="输入即译"
                       @update:model-value="persist(true)"
@@ -957,6 +994,7 @@ function setTemperature(v: number | number[]) {
                       </div>
                     </div>
                     <Switch
+                      class="h-[22px] w-10"
                       v-model="settings.autoCopy"
                       aria-label="弹卡自动复制译文"
                       @update:model-value="persist(true)"
@@ -971,6 +1009,7 @@ function setTemperature(v: number | number[]) {
                       </div>
                     </div>
                     <Switch
+                      class="h-[22px] w-10"
                       v-model="settings.autostart"
                       aria-label="开机自启"
                       @update:model-value="persist(true)"

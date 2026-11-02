@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { HTMLAttributes } from "vue";
 import { computed, ref } from "vue";
 import { Check, ChevronsUpDown } from "@lucide/vue";
 import { cn } from "cn";
@@ -15,8 +16,14 @@ import {
 import { LANGUAGES } from "@/types";
 
 const props = withDefaults(
-  defineProps<{ modelValue: string; placeholder?: string; withAuto?: boolean }>(),
-  { placeholder: "", withAuto: false },
+  defineProps<{
+    modelValue: string;
+    placeholder?: string;
+    withAuto?: boolean;
+    /** 触发器宽度类:自定义方向行里要能收缩,不能写死 240px */
+    class?: string;
+  }>(),
+  { placeholder: "", withAuto: false, class: "w-60" },
 );
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 
@@ -46,7 +53,7 @@ function pick(v: string) {
         variant="outline"
         role="combobox"
         :aria-expanded="open"
-        class="w-60 justify-between font-normal"
+        :class="cn('justify-between font-normal', props.class)"
       >
         <span class="truncate">{{ display }}</span>
         <ChevronsUpDown class="size-4 shrink-0 opacity-50" />

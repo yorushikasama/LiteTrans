@@ -1,8 +1,9 @@
 // 开发期浏览器直开 devUrl 时的 Tauri mock(仅 DEV 且无 Tauri 环境时生效)
 // 用于在普通 Chromium 里调试 UI 交互
-export function installTauriMock() {
+// 返回 true 表示当前确实处在 mock 态,调用方可据此挂调试标识
+export function installTauriMock(): boolean {
   const w = window as any;
-  if (import.meta.env.PROD || w.__TAURI_INTERNALS__) return;
+  if (import.meta.env.PROD || w.__TAURI_INTERNALS__) return false;
 
   const settings = {
     profiles: [
@@ -83,12 +84,9 @@ export function installTauriMock() {
         case "get_presets":
           return Promise.resolve(presets);
         case "take_pending_text":
-          // 弹卡入口用:给一段原文,便于在浏览器里看流式效果
-          return Promise.resolve(
-            document.body.dataset.page === "popup"
-              ? "The five tones are gong, shang, jue, zhi and yu."
-              : null,
-          );
+          // 浏览器里没有真实的划词链路,返回 null 让弹卡显示空态,
+          // 而不是塞一段假原文让人误以为划词成功了
+          return Promise.resolve(null);
         case "take_pending_error":
           return Promise.resolve(null);
         case "toggle_pin":
@@ -117,8 +115,8 @@ export function installTauriMock() {
             },
           ]);
         case "translate":
-          // 弹卡/主窗口:按 StreamMsg 的形态推流,便于核对排版与光标
-          mockStream(args?.onEvent);
+          // 弹卡/主窗口:按 StreamMsg 的形态推流,译文由真实原文派生
+          mockStream(args?.onEvent, args?.text);
           return Promise.resolve(null);
         default:
           return Promise.resolve(null);
@@ -129,14 +127,19 @@ export function installTauriMock() {
   /**
    * 模拟 Channel 流式消息(仅浏览器调试用)
    *
+   * 译文由传入的原文派生,不再固定返回一段与输入无关的兜底文本 ——
+   * 否则调试时无论选了什么,看到的都是同一段假数据,极易误判成逻辑故障。
+   *
    * Channel 实例的 id 就是 transformCallback 返回的回调,消息形状是
    * { index, message };index 必须连续递增,否则会被当作乱序消息排队。
    */
-  function mockStream(onEvent: any) {
+  function mockStream(onEvent: any, text: string) {
     const send = typeof onEvent === "function" ? onEvent : onEvent?.id;
     if (typeof send !== "function") return;
-    const out =
-      "宫、商、角、徵、羽是中国传统音乐中的五声音阶,分别对应简谱里的 1、2、3、5、6,古人以此定调,也以此论声。";
+    const src = (text ?? "").trim();
+    const out = src
+      ? `[浏览器调试] 这段译文由 mock 生成,不是真实模型输出。原文:${src}`
+      : "[浏览器调试] 没有收到原文,请确认输入框里有内容。";
     const chars = Array.from(out);
     let index = 0;
     const emit = (message: unknown) => send({ index: index++, message });
@@ -152,4 +155,6 @@ export function installTauriMock() {
       }
     }, 55);
   }
+
+  return true;
 }

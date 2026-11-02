@@ -229,12 +229,14 @@ async function openSettings() {
         </Button>
       </div>
 
-      <!-- 原文:三行封顶 -->
+      <!-- 原文:三行封顶。首帧尚未取到文本时留空,不要塞占位文案,
+           否则会被误读成"识别出来的原文" -->
       <div
+        v-if="source"
         class="line-clamp-3 shrink-0 border-b border-border/50 px-2.5 py-1.5 text-[12px] leading-[1.55] text-muted-foreground"
         :title="source"
       >
-        {{ source || "未取到文本" }}
+        {{ source }}
       </div>
 
       <!-- 译文:主角 -->

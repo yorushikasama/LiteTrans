@@ -10,19 +10,30 @@ pub async fn capture_selection(app: &AppHandle) -> Result<(), String> {
     // 弹卡自身持有焦点时不触发,避免自己复制自己
     if let Some(p) = app.get_webview_window("popup") {
         if p.is_focused().unwrap_or(false) {
-            return Ok(());
+            return Err("翻译弹卡当前处于焦点状态:先在别的窗口选中文字,再按热键".into());
         }
     }
 
     let saved = input::save_clipboard();
     input::press_ctrl_c()?;
-    input::wait_clipboard_change(saved.seq, 400).await;
+    // 必须等待剪贴板真的变化:不判断的话,模拟 Ctrl+C 未生效时会读到
+    // 用户上一次复制的旧内容,并把它当成"选中的文本"翻译,表现为译错内容
+    let changed = input::wait_clipboard_change(saved.seq, 400).await;
     let text = input::read_clipboard_text().unwrap_or_default();
     input::restore_clipboard_later(saved);
 
-    if text.trim().is_empty() {
-        return Err("未获取到选中文本(目标应用可能不支持 Ctrl+C,或当前没有选中文字)".into());
+    if !changed {
+        return Err(
+            "没有取到新的选中文本:目标应用可能不支持模拟 Ctrl+C(某些终端、游戏),\
+             或当前其实没有选中文字。也可改用截图翻译(默认 Alt+X)。"
+                .into(),
+        );
     }
+    if text.trim().is_empty() {
+        return Err("选中内容为空,请重新选中文字后再按热键".into());
+    }
+    // 剪贴板内容与原文相同(应用忽略 Ctrl+C 复制了别的东西)时也提示,
+    // 避免把无关内容当成译文来源
     show_popup_with_text(app, text).await
 }
 

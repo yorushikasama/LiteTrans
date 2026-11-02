@@ -504,17 +504,44 @@ function setTemperature(v: number | number[]) {
 
               <div ref="resultBox" class="min-h-0 flex-[1.15] overflow-y-auto px-5 py-3">
                 <div v-if="errorMsg" class="text-sm leading-6 text-destructive">{{ errorMsg }}</div>
+                <!-- 空态即操作说明:把三种用法和各自的前置条件写清楚 -->
                 <div
                   v-else-if="!result"
-                  class="flex h-full flex-col items-center justify-center gap-2 text-center"
+                  class="flex h-full flex-col items-center justify-center gap-4 text-center"
                 >
                   <ToneMark :id="activeProfile?.id" size="lg" />
-                  <span class="mt-1 text-[13px] text-muted-foreground">译文会显示在这里</span>
+                  <span class="text-[13px] text-muted-foreground">三种用法</span>
+                  <div class="flex flex-col gap-2.5 text-left">
+                    <div class="flex items-start gap-2.5">
+                      <kbd
+                        class="lt-num mt-px shrink-0 rounded border bg-card px-1.5 py-0.5 text-[11px]"
+                        >{{ settings.hotkey || "Alt+Q" }}</kbd
+                      >
+                      <span class="text-[12px] leading-5 text-muted-foreground">
+                        在<b class="font-medium text-foreground">别的窗口</b>选中文字后用热键,
+                        光标旁弹出翻译卡
+                      </span>
+                    </div>
+                    <div class="flex items-start gap-2.5">
+                      <kbd
+                        class="lt-num mt-px shrink-0 rounded border bg-card px-1.5 py-0.5 text-[11px]"
+                        >{{ settings.captureHotkey || "Alt+X" }}</kbd
+                      >
+                      <span class="text-[12px] leading-5 text-muted-foreground">
+                        截图翻译:框选屏幕上无法选中的文字(图片、PDF、视频字幕)
+                      </span>
+                    </div>
+                    <div class="flex items-start gap-2.5">
+                      <kbd class="mt-px shrink-0 rounded border bg-card px-1.5 py-0.5 text-[11px]"
+                        >Ctrl+Enter</kbd
+                      >
+                      <span class="text-[12px] leading-5 text-muted-foreground">
+                        在下面输入框里贴文字,直接翻译
+                      </span>
+                    </div>
+                  </div>
                   <span class="text-[11px] text-muted-foreground/70">
-                    选中任意文字按
-                    <kbd class="lt-num rounded border bg-card px-1 py-px">
-                      {{ settings.hotkey || "Alt+Q" }} </kbd
-                    >也能划词翻译
+                    划词依赖模拟 Ctrl+C,某些终端或游戏里不生效;这些场景请用截图翻译
                   </span>
                 </div>
                 <div v-else class="lt-fade text-[15px] leading-[1.85] whitespace-pre-wrap">

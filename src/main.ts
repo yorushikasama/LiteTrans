@@ -1,9 +1,9 @@
 import { createApp } from "vue";
 import App from "./App.vue";
 import "./assets/index.css";
-import { installErrorBanner } from "./errorBanner";
+import { installErrorBanner, installMockBadge } from "./errorBanner";
 import { installTauriMock } from "./devMock";
 
-installTauriMock();
+if (installTauriMock()) installMockBadge();
 installErrorBanner();
 createApp(App).mount("#app");

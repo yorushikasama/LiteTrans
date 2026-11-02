@@ -171,8 +171,11 @@ pub fn register_hotkeys(app: &AppHandle) -> Result<(), String> {
                 if event.state == ShortcutState::Pressed {
                     let app = app.clone();
                     tauri::async_runtime::spawn(async move {
+                        // 划词失败必须让用户看见:早先只写日志,表现为
+                        // "按了热键没反应",无从判断是没选中还是热键失效
                         if let Err(e) = clipboard_flow::capture_selection(&app).await {
                             eprintln!("[litetrans] {e}");
+                            let _ = clipboard_flow::show_popup_with_error(&app, e).await;
                         }
                     });
                 }

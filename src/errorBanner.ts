@@ -17,3 +17,23 @@ export function installErrorBanner() {
   window.addEventListener("error", (e) => show(e.message || "未知错误"));
   window.addEventListener("unhandledrejection", (e) => show(`Promise 拒绝: ${e.reason}`));
 }
+
+/**
+ * 浏览器调试态标识。
+ *
+ * 在普通浏览器里打开 devUrl 时,后端由 devMock 顶替:没有真实划词、
+ * 没有真实模型。此前界面和正式版完全一样,导致"选中文字没翻译"之类
+ * 的误判 —— 看到的是 mock 数据,却以为应用坏了。这里在页面底部挂一条
+ * 常驻提示,并且把标题改掉,一眼可辨。
+ */
+export function installMockBadge() {
+  const badge = document.createElement("div");
+  badge.id = "lt-mock-badge";
+  badge.textContent = "浏览器调试模式 · 无真实划词与翻译,译文为 mock 生成";
+  badge.style.cssText =
+    "position:fixed;bottom:0;left:0;right:0;z-index:2147483646;" +
+    "background:#8b5500;color:#ffe9bf;font:11px/1.6 'Segoe UI','Microsoft YaHei',sans-serif;" +
+    "padding:2px 10px;text-align:center;letter-spacing:0.02em;pointer-events:none;";
+  document.body.appendChild(badge);
+  document.title = `[调试] ${document.title}`;
+}

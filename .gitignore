@@ -3,3 +3,6 @@ dist
 src-tauri/target
 src-tauri/gen/schemas
 *.local
+
+# 便携版打包的中间目录(保留 release/ 下的 zip 与安装包)
+release/LiteTrans_*_portable/

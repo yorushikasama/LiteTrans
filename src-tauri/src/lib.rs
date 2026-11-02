@@ -7,6 +7,7 @@
 //! - `ocr`:GDI 抓屏 + Windows OCR
 //! - `engine`:AI 翻译引擎(多协议 SSE)
 //! - `settings` / `history`:配置与历史持久化
+//! - `paths`:数据目录解析(安装版 / 便携版)
 //! - `lang`:语种识别与方向解析
 //! - `tts_win`:系统 TTS
 
@@ -18,6 +19,7 @@ mod history;
 mod input;
 mod lang;
 mod ocr;
+mod paths;
 mod settings;
 mod tray;
 mod tts_win;
@@ -79,6 +81,8 @@ pub fn run() {
             commands::read_clipboard,
             commands::get_history,
             commands::clear_history,
+            commands::get_runtime_info,
+            commands::open_data_dir,
             commands::hide_popup,
             commands::open_main_with_text,
             commands::open_main_settings,

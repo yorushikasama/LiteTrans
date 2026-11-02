@@ -120,7 +120,8 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         None::<&str>,
     )?;
     let conf = MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
-    let is_auto = app.autolaunch().is_enabled().unwrap_or(false);
+    let portable = crate::paths::is_portable();
+    let is_auto = !portable && app.autolaunch().is_enabled().unwrap_or(false);
     let auto = CheckMenuItem::with_id(app, "autostart", "开机自启", true, is_auto, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
 
@@ -152,14 +153,12 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         }
         mb = mb.separator();
     }
-    let menu = mb
-        .item(&hk)
-        .separator()
-        .item(&conf)
-        .item(&auto)
-        .separator()
-        .item(&quit)
-        .build()?;
+    let mut menu_builder = mb.item(&hk).separator().item(&conf);
+    if !portable {
+        // 便携版没有开机自启的概念,菜单里不出现,而不是列出来再点了无效
+        menu_builder = menu_builder.item(&auto);
+    }
+    let menu = menu_builder.separator().item(&quit).build()?;
     Ok(menu)
 }
 
@@ -213,6 +212,11 @@ fn on_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
             });
         }
         "autostart" => {
+            // 便携版不写注册表:开机自启对它是无意义且会污染系统的操作
+            if crate::paths::is_portable() {
+                crate::show_main(app);
+                return;
+            }
             use tauri_plugin_autostart::ManagerExt;
             let al = app.autolaunch();
             let enabled = if al.is_enabled().unwrap_or(false) {

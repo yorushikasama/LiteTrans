@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
 
 pub const KEYRING_SERVICE: &str = "LiteTrans";
 
@@ -323,10 +322,7 @@ fn keyring_delete(account: &str) {
 
 impl Settings {
     pub fn config_path(app: &tauri::AppHandle) -> Option<PathBuf> {
-        app.path()
-            .app_config_dir()
-            .ok()
-            .map(|d| d.join("config.json"))
+        crate::paths::data_file(app, "config.json")
     }
 
     pub fn load(app: &tauri::AppHandle) -> Self {
@@ -385,9 +381,13 @@ impl Settings {
                 s.active_id = first.id.clone();
             }
         }
-        // 开机自启以系统实际状态为准
-        use tauri_plugin_autostart::ManagerExt;
-        s.autostart = app.autolaunch().is_enabled().unwrap_or(false);
+        // 开机自启以系统实际状态为准;便携版不写注册表,一律视为关闭
+        if crate::paths::is_portable() {
+            s.autostart = false;
+        } else {
+            use tauri_plugin_autostart::ManagerExt;
+            s.autostart = app.autolaunch().is_enabled().unwrap_or(false);
+        }
         s
     }
 

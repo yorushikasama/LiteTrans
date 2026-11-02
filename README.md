@@ -93,8 +93,28 @@ npm run format         # prettier 格式化
 ## 构建
 
 ```bash
-npm run tauri build   # 产物: src-tauri/target/release/bundle/nsis/
+npm run tauri build      # 安装版,产物: src-tauri/target/release/bundle/nsis/
+bash scripts/make-portable.sh   # 便携版 zip,产物: release/LiteTrans_0.1.0_x64_portable.zip
 ```
+
+## 安装版与便携版
+
+两种版本共用同一个 `litetrans.exe`,区别只在**程序旁边有没有 `portable.txt`**:
+
+| | 安装版 | 便携(绿色)版 |
+|---|---|---|
+| 数据位置 | `%APPDATA%\LiteTrans` | `<程序目录>\data\`(自动创建) |
+| 开机自启 | 支持(写注册表) | 不提供,托盘里也不显示该项 |
+| 卸载 | 走卸载程序 | 删掉整个文件夹 |
+| 迁移 | 需手动导出配置 | 整个文件夹拷走即可 |
+
+用「标记文件」而不是「检测目录是否可写」来判定:后者在 `C:\Program Files` 下会因
+UAC 虚拟化产生"看似可写、实则被重定向"的结果,判定不可靠。
+
+**API Key 两种情况都不随目录迁移**,它存在 Windows 凭据管理器(按服务名 `LiteTrans`
++ 配置 id),换机器或换用户需要重新填一次。这是有意的:凭据管理器是这台机器的安全边界。
+
+设置页底部「关于」会显示当前是哪种版本、数据目录的实际路径,并提供「打开数据目录」。
 
 ## 使用说明
 

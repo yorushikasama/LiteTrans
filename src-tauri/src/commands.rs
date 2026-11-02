@@ -180,15 +180,17 @@ pub fn save_settings(
     state: State<'_, AppState>,
     settings: Settings,
 ) -> Result<(), String> {
-    // 开机自启
-    use tauri_plugin_autostart::ManagerExt;
-    let want = settings.autostart;
-    let cur = app.autolaunch().is_enabled().unwrap_or(false);
-    if want != cur {
-        if want {
-            app.autolaunch().enable().map_err(|e| e.to_string())?;
-        } else {
-            app.autolaunch().disable().map_err(|e| e.to_string())?;
+    // 开机自启:便携版不写注册表,免得拷到别的机器留下自启项
+    if !crate::paths::is_portable() {
+        use tauri_plugin_autostart::ManagerExt;
+        let want = settings.autostart;
+        let cur = app.autolaunch().is_enabled().unwrap_or(false);
+        if want != cur {
+            if want {
+                app.autolaunch().enable().map_err(|e| e.to_string())?;
+            } else {
+                app.autolaunch().disable().map_err(|e| e.to_string())?;
+            }
         }
     }
 
@@ -416,6 +418,37 @@ pub fn read_clipboard() -> Result<Option<String>, String> {
 #[tauri::command]
 pub fn get_history(app: AppHandle) -> Vec<crate::history::HistoryItem> {
     crate::history::load(&app)
+}
+
+/// 运行环境信息:设置页据此显示"便携版/安装版"与数据目录位置
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeInfo {
+    pub portable: bool,
+    pub data_dir: String,
+    pub version: String,
+}
+
+#[tauri::command]
+pub fn get_runtime_info(app: AppHandle) -> RuntimeInfo {
+    RuntimeInfo {
+        portable: crate::paths::is_portable(),
+        data_dir: crate::paths::data_dir(&app)
+            .map(|d| d.display().to_string())
+            .unwrap_or_default(),
+        version: app.package_info().version.to_string(),
+    }
+}
+
+/// 在资源管理器里打开数据目录,方便便携版用户找到自己的配置
+#[tauri::command]
+pub fn open_data_dir(app: AppHandle) -> Result<(), String> {
+    let dir = crate::paths::data_dir(&app).ok_or("无法解析数据目录")?;
+    std::process::Command::new("explorer")
+        .arg(dir.as_os_str())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]

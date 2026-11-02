@@ -72,6 +72,13 @@ export interface Settings {
   setupDone: boolean;
 }
 
+export interface RuntimeInfo {
+  /** 便携(绿色)版:数据写在 exe 旁边的 data/ 目录 */
+  portable: boolean;
+  dataDir: string;
+  version: string;
+}
+
 export interface HistoryItem {
   ts: number;
   source: string;

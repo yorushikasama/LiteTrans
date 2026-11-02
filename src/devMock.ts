@@ -91,6 +91,12 @@ export function installTauriMock(): boolean {
           return Promise.resolve(null);
         case "toggle_pin":
           return Promise.resolve(true);
+        case "get_runtime_info":
+          return Promise.resolve({
+            portable: false,
+            dataDir: "(浏览器调试态,无真实数据目录)",
+            version: "0.1.0",
+          });
         case "test_profile":
           return Promise.resolve("连接正常 · 123 ms(mock)");
         case "get_history":

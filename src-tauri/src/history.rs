@@ -1,7 +1,6 @@
 use std::fs;
 
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
 
 /// 一条翻译历史记录
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,10 +22,7 @@ pub struct HistoryItem {
 const MAX_ITEMS: usize = 50;
 
 fn history_path(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
-    app.path()
-        .app_config_dir()
-        .ok()
-        .map(|d| d.join("history.json"))
+    crate::paths::data_file(app, "history.json")
 }
 
 pub fn record(app: &tauri::AppHandle, item: HistoryItem) {

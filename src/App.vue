@@ -18,7 +18,7 @@ import {
   Volume2,
 } from "@lucide/vue";
 import { genId, langLabel, PROTOCOLS, protocolShort } from "./types";
-import type { HistoryItem, Preset, Profile, Settings, StreamMsg } from "./types";
+import type { HistoryItem, Preset, Profile, RuntimeInfo, Settings, StreamMsg } from "./types";
 import { cn } from "@/lib/utils";
 import { toneMode } from "./tones";
 
@@ -64,6 +64,8 @@ const resultBox = ref<HTMLElement | null>(null);
 const settings = ref<Settings | null>(null);
 const presets = ref<Preset[]>([]);
 const historyItems = ref<HistoryItem[]>([]);
+/** 运行环境:便携版还是安装版、数据目录在哪 */
+const runtime = ref<RuntimeInfo | null>(null);
 
 const editing = ref<Profile | null>(null);
 const testMsg = ref<Record<string, string>>({});
@@ -135,6 +137,11 @@ onMounted(async () => {
   await Promise.all([
     refreshSettings(),
     invoke<Preset[]>("get_presets").then((p) => (presets.value = p)),
+    invoke<RuntimeInfo>("get_runtime_info")
+      .then((r) => (runtime.value = r))
+      .catch(() => {
+        /* 浏览器调试态无此命令 */
+      }),
   ]);
   await listen<{ text: string }>("fill-source", (e) => {
     source.value = e.payload.text;
@@ -186,6 +193,10 @@ function fmtTime(ts: number): string {
 async function clearHistory() {
   await invoke("clear_history");
   historyItems.value = [];
+}
+
+function openDataDir() {
+  invoke("open_data_dir").catch((e) => toast.error(String(e)));
 }
 
 async function pasteFromClipboard() {
@@ -993,6 +1004,48 @@ function setTemperature(v: number | number[]) {
                 <div class="mt-4 flex items-center gap-3">
                   <Button size="sm" @click="persist">保存设置</Button>
                   <span v-if="saveErr" class="text-xs text-destructive">{{ saveErr }}</span>
+                </div>
+              </section>
+
+              <!-- 关于:运行环境与数据位置 -->
+              <section v-if="runtime" class="mt-8 border-t pt-4">
+                <h2 class="text-[13px] font-medium">关于</h2>
+                <div class="mt-1 divide-y divide-border/60">
+                  <div class="flex items-center justify-between gap-4 py-2.5">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2 text-[13px]">
+                        <span
+                          class="rounded border px-1.5 text-[10px] leading-4"
+                          :class="
+                            runtime.portable
+                              ? 'border-jue-ink/50 text-jue-ink'
+                              : 'border-border text-muted-foreground'
+                          "
+                          >{{ runtime.portable ? "便携版" : "安装版" }}</span
+                        >
+                        <span class="lt-num text-muted-foreground">v{{ runtime.version }}</span>
+                      </div>
+                      <div class="mt-0.5 text-[11.5px] text-muted-foreground">
+                        {{
+                          runtime.portable
+                            ? "配置与历史都存在程序目录的 data/,整个文件夹拷走即可带走设置"
+                            : "配置与历史存在系统用户目录;如需便携使用,下载便携版"
+                        }}
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" class="shrink-0" @click="openDataDir"
+                      >打开数据目录</Button
+                    >
+                  </div>
+                  <div class="py-2.5">
+                    <div class="lt-label">数据位置</div>
+                    <div class="lt-num mt-0.5 text-[11px] break-all text-muted-foreground">
+                      {{ runtime.dataDir || "(未知)" }}
+                    </div>
+                    <div class="mt-1 text-[11px] text-muted-foreground/80">
+                      API Key 不在此目录,单独存放在 Windows 凭据管理器
+                    </div>
+                  </div>
                 </div>
               </section>
             </div>

@@ -193,11 +193,21 @@ pub fn ensure_popup(app: &AppHandle) -> Result<WebviewWindow, String> {
 
     let w = win.clone();
     win.on_window_event(move |event| {
-        // 只需要关心失焦:点窗口外 = 弹卡失去焦点 = 隐藏。
+        // 只关心失焦:点窗口外 = 弹卡失去焦点 = 隐藏。
         // 点窗口本体不会让弹卡失焦,所以什么也不会发生 —— 这正是要的行为。
         if let tauri::WindowEvent::Focused(false) = event {
             let state = w.app_handle().state::<AppState>();
             if state.pinned.load(Ordering::Relaxed) {
+                return;
+            }
+            // 鼠标还按着就失焦,是「正在拖动窗口」而不是「点了别处」。
+            //
+            // 拖动顶条时 Tauri 走 startDragging,Windows 会在这期间让窗口
+            // 短暂失去焦点;照字面执行 hide 的后果是用户一按下去弹卡就没了
+            // —— 实测日志:press inside=true → Focused(false) down=true
+            // → 隐藏。点一下(按下随即松开)不会触发这条,所以
+            // "点击窗口本体不消失"一直是对的,只有拖动会踩到。
+            if input::mouse_button_down() {
                 return;
             }
             // 刚显示后的一小段时间内忽略失焦:窗口还没真正进入屏幕时,

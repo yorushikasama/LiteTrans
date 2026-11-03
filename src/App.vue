@@ -62,6 +62,17 @@ const copiedResult = ref(false);
 const resultBox = ref<HTMLElement | null>(null);
 
 const settings = ref<Settings | null>(null);
+/**
+ * 模板里 v-model 的写入目标。
+ *
+ * 设置页整体在 v-if="settings" 之内,读表达式能正常收窄;但 v-model 会生成
+ * 一句赋值,vue-tsc 不会把收窄带进赋值目标,于是每个 v-model="settings.xxx"
+ * 都报「'settings' is possibly 'null'」。这里给一个非空视图专门用于写入,
+ * 运行时由 v-if 保证非空。
+ */
+const st = computed(() => settings.value as Settings);
+/** 同上:编辑器整体在 v-if="editing" 之内,给 v-model 一个非空写入视图 */
+const ed = computed(() => editing.value as Profile);
 const presets = ref<Preset[]>([]);
 const historyItems = ref<HistoryItem[]>([]);
 /** 运行环境:便携版还是安装版、数据目录在哪 */
@@ -401,9 +412,11 @@ async function fetchModels() {
   }
 }
 
-function setTemperature(v: number | number[]) {
-  if (editing.value) {
-    editing.value.temperature = Array.isArray(v) ? v[0] : v;
+/** Slider 的 update 回调签名是 `number[] | undefined`,这里显式对齐,
+    否则函数参数逆变会报类型不兼容。 */
+function setTemperature(v: number[] | undefined) {
+  if (editing.value && v?.length) {
+    editing.value.temperature = v[0];
   }
 }
 </script>
@@ -414,11 +427,13 @@ function setTemperature(v: number | number[]) {
 
     <Tabs v-model="tab" class="flex h-full flex-row gap-0">
       <!-- ────────── 侧栏 ────────── -->
-      <aside class="flex w-[188px] shrink-0 flex-col border-r bg-card/60 select-none">
+      <!-- 150% 缩放下 800x600 的窗口只有 533px 宽,188px 的侧栏会吃掉 35%,
+           内容区只剩 345px。窄屏收窄到 148px 并隐藏品牌字,把宽度还给正文。 -->
+      <aside class="flex w-[148px] shrink-0 flex-col border-r bg-card/60 select-none sm:w-[188px]">
         <!-- 品牌 -->
         <div class="flex h-14 items-center gap-2.5 px-4">
-          <ToneMark :id="activeProfile?.id" />
-          <span class="lt-wordmark">LiteTrans</span>
+          <ToneMark :id="activeProfile?.id" class="shrink-0" />
+          <span class="lt-wordmark hidden truncate sm:inline">LiteTrans</span>
         </div>
 
         <!-- 导航 -->
@@ -526,45 +541,50 @@ function setTemperature(v: number | number[]) {
                 class="flex min-h-0 flex-[1.15] flex-col overflow-y-auto px-5 py-3"
               >
                 <div v-if="errorMsg" class="text-sm leading-6 text-destructive">{{ errorMsg }}</div>
-                <!-- 空态即操作说明。容器用 h-full + 父级 flex 才能垂直居中;
-                     但它挂在 overflow-y-auto 里,100% 会解析成视口高度而撑破
-                     内容区(实测 500px 高盖住整个窗口),所以给父级加 flex。 -->
+                <!-- 空态即操作说明,外层是 overflow-y-auto 的滚动容器。
+                     这是整个应用最挤的一屏:150% 缩放下默认窗口 800x600 只有
+                     533x400 个 CSS 像素,扣掉工具行/读数条/操作条后正文区
+                     仅约 133px。所以这份说明必须按"密"来排 ——
+                     窄屏隐藏竖标与导语、行距收紧、右侧说明单行截断;
+                     宽屏(sm 以上)才恢复完整文案。
+                     居中用 justify-safe-center:放得下居中,放不下退回顶端,
+                     否则 justify-center 会把溢出均分到上下两端、顶端滚不到。 -->
                 <div
                   v-else-if="!result"
-                  class="flex h-full flex-col items-center justify-center gap-4 text-center"
+                  class="flex min-h-full flex-col items-center justify-safe-center gap-2 py-1 text-center sm:gap-3 sm:py-2"
                 >
-                  <ToneMark :id="activeProfile?.id" size="lg" />
-                  <span class="text-[13px] text-muted-foreground">三种用法</span>
-                  <div class="flex flex-col gap-2.5 text-left">
-                    <div class="flex items-start gap-2.5">
+                  <ToneMark :id="activeProfile?.id" size="lg" class="hidden shrink-0 sm:block" />
+                  <span class="text-[12px] text-muted-foreground sm:text-[13px]">三种用法</span>
+                  <div class="flex w-full max-w-md flex-col gap-1.5 text-left sm:gap-2">
+                    <div class="flex items-center gap-2 sm:items-start sm:gap-2.5">
                       <kbd
-                        class="lt-num mt-px shrink-0 rounded border bg-card px-1.5 py-0.5 text-[11px]"
+                        class="lt-num shrink-0 rounded border bg-card px-1.5 py-0.5 text-[11px] sm:mt-px"
                         >{{ settings.hotkey || "Alt+Q" }}</kbd
                       >
-                      <span class="text-[12px] leading-5 text-muted-foreground">
-                        在<b class="font-medium text-foreground">别的窗口</b>选中文字后用热键,
-                        光标旁弹出翻译卡
+                      <span class="min-w-0 text-[12px] leading-5 text-muted-foreground sm:flex-1">
+                        在<b class="font-medium text-foreground">别的窗口</b>选中文字后按热键
                       </span>
                     </div>
-                    <div class="flex items-start gap-2.5">
+                    <div class="flex items-center gap-2 sm:items-start sm:gap-2.5">
                       <kbd
-                        class="lt-num mt-px shrink-0 rounded border bg-card px-1.5 py-0.5 text-[11px]"
+                        class="lt-num shrink-0 rounded border bg-card px-1.5 py-0.5 text-[11px] sm:mt-px"
                         >{{ settings.captureHotkey || "Alt+X" }}</kbd
                       >
-                      <span class="text-[12px] leading-5 text-muted-foreground">
-                        截图翻译:框选屏幕上无法选中的文字(图片、PDF、视频字幕)
+                      <span class="min-w-0 text-[12px] leading-5 text-muted-foreground sm:flex-1">
+                        截图翻译,框选图片、PDF、视频字幕里的文字
                       </span>
                     </div>
-                    <div class="flex items-start gap-2.5">
-                      <kbd class="mt-px shrink-0 rounded border bg-card px-1.5 py-0.5 text-[11px]"
+                    <div class="flex items-center gap-2 sm:items-start sm:gap-2.5">
+                      <kbd
+                        class="lt-num shrink-0 rounded border bg-card px-1.5 py-0.5 text-[11px] sm:mt-px"
                         >Ctrl+Enter</kbd
                       >
-                      <span class="text-[12px] leading-5 text-muted-foreground">
-                        在下面输入框里贴文字,直接翻译
+                      <span class="min-w-0 text-[12px] leading-5 text-muted-foreground sm:flex-1">
+                        在下面贴文字直接翻译
                       </span>
                     </div>
                   </div>
-                  <span class="text-[11px] text-muted-foreground/70">
+                  <span class="hidden text-[11px] leading-4 text-muted-foreground/70 sm:block">
                     划词依赖模拟 Ctrl+C,某些终端或游戏里不生效;这些场景请用截图翻译
                   </span>
                 </div>
@@ -810,16 +830,13 @@ function setTemperature(v: number | number[]) {
 
                   <label class="flex flex-col gap-1">
                     <span class="lt-label">名称</span>
-                    <Input
-                      v-model="editing.name"
-                      placeholder="如 DeepSeek 官方 / 我的 OpenRouter"
-                    />
+                    <Input v-model="ed.name" placeholder="如 DeepSeek 官方 / 我的 OpenRouter" />
                   </label>
 
                   <div class="grid grid-cols-2 gap-3">
                     <label class="flex flex-col gap-1">
                       <span class="lt-label">服务商预设</span>
-                      <Select v-model="editing.provider" @update:model-value="applyPreset">
+                      <Select v-model="ed.provider" @update:model-value="applyPreset">
                         <SelectTrigger class="w-full">
                           <SelectValue placeholder="选择服务商" />
                         </SelectTrigger>
@@ -832,7 +849,7 @@ function setTemperature(v: number | number[]) {
                     </label>
                     <label class="flex flex-col gap-1">
                       <span class="lt-label">接口协议</span>
-                      <Select v-model="editing.protocol">
+                      <Select v-model="ed.protocol">
                         <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem v-for="x in PROTOCOLS" :key="x.value" :value="x.value">
@@ -846,7 +863,7 @@ function setTemperature(v: number | number[]) {
                   <label class="flex flex-col gap-1">
                     <span class="lt-label">API 地址(Base URL)</span>
                     <Input
-                      v-model="editing.baseUrl"
+                      v-model="ed.baseUrl"
                       class="lt-num text-[12.5px]"
                       placeholder="https://api.example.com/v1"
                     />
@@ -860,7 +877,7 @@ function setTemperature(v: number | number[]) {
                     <div class="flex items-start gap-2">
                       <div class="min-w-0 flex-1">
                         <ModelCombobox
-                          v-model="editing.model"
+                          v-model="ed.model"
                           :options="modelOptions"
                           placeholder="deepseek-chat"
                         />
@@ -882,10 +899,10 @@ function setTemperature(v: number | number[]) {
                     </span>
                   </div>
 
-                  <label v-if="editing.provider !== 'ollama'" class="flex flex-col gap-1">
+                  <label v-if="ed.provider !== 'ollama'" class="flex flex-col gap-1">
                     <span class="lt-label">API Key</span>
                     <Input
-                      v-model="editing.apiKey"
+                      v-model="ed.apiKey"
                       type="password"
                       class="lt-num"
                       placeholder="sk-…"
@@ -897,11 +914,11 @@ function setTemperature(v: number | number[]) {
                     <div class="flex items-baseline justify-between gap-2">
                       <span class="lt-label">Temperature</span>
                       <span class="lt-num text-[11px] text-muted-foreground">
-                        {{ editing.temperature.toFixed(1) }} · 越低越稳定
+                        {{ ed.temperature.toFixed(1) }} · 越低越稳定
                       </span>
                     </div>
                     <Slider
-                      :model-value="[editing.temperature]"
+                      :model-value="[ed.temperature]"
                       :min="0"
                       :max="2"
                       :step="0.1"
@@ -936,7 +953,7 @@ function setTemperature(v: number | number[]) {
                       </div>
                     </div>
                     <Input
-                      v-model="settings.hotkey"
+                      v-model="st.hotkey"
                       class="lt-num h-8 w-40 text-center text-xs"
                       aria-label="划词热键"
                     />
@@ -950,7 +967,7 @@ function setTemperature(v: number | number[]) {
                       </div>
                     </div>
                     <Input
-                      v-model="settings.captureHotkey"
+                      v-model="st.captureHotkey"
                       class="lt-num h-8 w-40 text-center text-xs"
                       aria-label="截图翻译热键"
                     />
@@ -964,8 +981,8 @@ function setTemperature(v: number | number[]) {
                       </div>
                     </div>
                     <Switch
-                      class="h-[22px] w-10"
-                      v-model="settings.hotkeyEnabled"
+                      class="h-6 w-11"
+                      v-model="st.hotkeyEnabled"
                       aria-label="启用划词热键"
                       @update:model-value="persist(true)"
                     />
@@ -979,8 +996,8 @@ function setTemperature(v: number | number[]) {
                       </div>
                     </div>
                     <Switch
-                      class="h-[22px] w-10"
-                      v-model="settings.autoTranslate"
+                      class="h-6 w-11"
+                      v-model="st.autoTranslate"
                       aria-label="输入即译"
                       @update:model-value="persist(true)"
                     />
@@ -994,8 +1011,8 @@ function setTemperature(v: number | number[]) {
                       </div>
                     </div>
                     <Switch
-                      class="h-[22px] w-10"
-                      v-model="settings.autoCopy"
+                      class="h-6 w-11"
+                      v-model="st.autoCopy"
                       aria-label="弹卡自动复制译文"
                       @update:model-value="persist(true)"
                     />
@@ -1009,8 +1026,8 @@ function setTemperature(v: number | number[]) {
                       </div>
                     </div>
                     <Switch
-                      class="h-[22px] w-10"
-                      v-model="settings.autostart"
+                      class="h-6 w-11"
+                      v-model="st.autostart"
                       aria-label="开机自启"
                       @update:model-value="persist(true)"
                     />
@@ -1023,7 +1040,7 @@ function setTemperature(v: number | number[]) {
                         划词弹卡与主窗口共用同一方向
                       </div>
                     </div>
-                    <TranslateDirection :settings="settings" @change="persist(true)" />
+                    <TranslateDirection :settings="st" @change="persist(true)" />
                   </div>
 
                   <div class="flex flex-col gap-1.5 py-3">
@@ -1032,7 +1049,7 @@ function setTemperature(v: number | number[]) {
                       <div class="text-[11.5px] text-muted-foreground">写进系统提示词,可留空</div>
                     </div>
                     <Textarea
-                      v-model="settings.customPrompt"
+                      v-model="st.customPrompt"
                       :rows="2"
                       class="max-w-xl resize-none"
                       placeholder="例如:术语按 XX 译法;语气保持正式"

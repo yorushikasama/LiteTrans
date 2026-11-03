@@ -61,6 +61,8 @@ export interface Settings {
   sourceLang: string;
   targetLang: string;
   hotkey: string;
+  /** 截图翻译热键(框选屏幕区域 OCR 后翻译);Rust 端早有此字段,之前漏写在这 */
+  captureHotkey: string;
   customPrompt: string;
   autostart: boolean;
   /** 划词弹卡完成后自动复制译文 */

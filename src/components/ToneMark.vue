@@ -13,6 +13,10 @@ const active = computed(() => (props.id ? toneIndex(props.id) : -1));
 const BASE = [9, 12, 15, 12, 9];
 const scale = computed(() => ({ sm: 0.72, md: 1, lg: 1.35 })[props.size]);
 const barW = computed(() => Math.max(2, 3 * scale.value));
+/** 发光半径在 script 里算好:模板里 scale 已自动解包成数字,
+    再写 scale.value 会得到 undefined,boxShadow 变成 NaNpx 被整条丢弃
+    —— 结果是「当前调」那一根从来没有发过光。 */
+const glow = computed(() => 6 * scale.value);
 </script>
 
 <template>
@@ -31,7 +35,7 @@ const barW = computed(() => Math.max(2, 3 * scale.value));
         height: `${(i === active ? BASE[i] + 3 : BASE[i]) * scale}px`,
         background: t.color,
         opacity: i === active ? 1 : 0.42,
-        boxShadow: i === active ? `0 0 ${6 * scale.value}px ${t.color}` : 'none',
+        boxShadow: i === active ? `0 0 ${glow}px ${t.color}` : 'none',
       }"
     />
   </span>

@@ -29,11 +29,15 @@ export function installErrorBanner() {
 export function installMockBadge() {
   const badge = document.createElement("div");
   badge.id = "lt-mock-badge";
-  badge.textContent = "浏览器调试模式 · 无真实划词与翻译,译文为 mock 生成";
+  badge.textContent = "浏览器调试 · 译文为 mock";
+  badge.title = "浏览器调试模式:无真实划词与翻译,译文由 mock 生成";
+  // 靠右下角收成一枚小胶囊,而不是横贯底部的整条:整条会盖住操作条最下面的
+  // 22px,把「翻译/粘贴/复制」按钮压掉一半,调试时反而点不到按钮。
   badge.style.cssText =
-    "position:fixed;bottom:0;left:0;right:0;z-index:2147483646;" +
-    "background:#8b5500;color:#ffe9bf;font:11px/1.6 'Segoe UI','Microsoft YaHei',sans-serif;" +
-    "padding:2px 10px;text-align:center;letter-spacing:0.02em;pointer-events:none;";
+    "position:fixed;right:8px;bottom:8px;z-index:2147483646;max-width:60vw;" +
+    "background:#8b5500;color:#ffe9bf;font:11px/1.5 'Segoe UI','Microsoft YaHei',sans-serif;" +
+    "padding:3px 9px;border-radius:999px;letter-spacing:0.02em;pointer-events:none;" +
+    "box-shadow:0 2px 8px rgb(0 0 0 / 0.25);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
   document.body.appendChild(badge);
   document.title = `[调试] ${document.title}`;
 }

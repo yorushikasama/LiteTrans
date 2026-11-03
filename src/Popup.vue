@@ -184,11 +184,15 @@ async function openSettings() {
 </script>
 
 <template>
-  <div class="h-screen">
+  <!-- 弹卡窗口 420x330 且不可缩放。卡片直接铺满整个窗口:
+       早先留了 6px 外边距(为了阴影有落脚处),但那圈透明边在浅色桌面上
+       会被看成"白边",在深色桌面上又像一圈脏边 —— 用户反馈的就是这个。
+       现在取消外边距,阴影改由窗口自身承担,卡片只用细边框勾轮廓。 -->
+  <div class="h-screen overflow-hidden">
     <Toaster theme="system" position="top-center" />
     <div
       :key="cardKey"
-      class="lt-pop lt-card m-1.5 flex h-[calc(100vh-12px)] flex-col overflow-hidden rounded-[10px] border border-border/80 shadow-[0_6px_22px_-6px_rgba(20,26,38,0.35)] backdrop-blur-xl"
+      class="lt-pop lt-card flex h-screen flex-col overflow-hidden rounded-[10px] border border-border/80"
     >
       <!-- 顶条:调式 + 方向读数 + 操作 -->
       <div class="flex h-8 shrink-0 items-center gap-1.5 border-b border-border/70 px-2">
@@ -272,9 +276,12 @@ async function openSettings() {
         </Button>
         <span class="flex-1"></span>
         <span v-if="dictMode" class="lt-num mr-1 text-[10px] text-jue-ink">词典</span>
+        <!-- SelectTrigger 自带 data-[size=default]:h-9(36px),会把 32px 高的底条
+             撑破 4px(实测 scrollHeight 34 > clientHeight 31),必须把高度也顶掉,
+             只写 h-6 会被基础样式的 h-9 覆盖。 -->
         <Select v-if="profiles.length" v-model="activeId" @update:model-value="switchProfile">
           <SelectTrigger
-            class="h-6 w-auto max-w-36 gap-1 border-0 bg-transparent px-1.5 text-[11px] shadow-none hover:bg-accent"
+            class="!h-6 w-auto max-w-36 gap-1 border-0 bg-transparent px-1.5 py-0 text-[11px] shadow-none hover:bg-accent"
             title="切换模型配置"
           >
             <SelectValue />

@@ -28,15 +28,16 @@ const props = withDefaults(
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 
 const open = ref(false);
+// LANGUAGES 里本来就没有 "auto"(自动检测是上面单独插的),不必再过滤一遍
 const items = [
   ...(props.withAuto ? [{ value: "auto", label: "自动检测" }] : []),
-  ...LANGUAGES.filter((l) => l.value !== "auto").map((l) => ({ value: l.value, label: l.label })),
+  ...LANGUAGES.map((l) => ({ value: l.value, label: l.label })),
 ];
 const display = computed(
   () =>
-    items.find((i) => i.value === props.modelValue)?.label ??
-    props.modelValue ??
-    props.placeholder ??
+    items.find((i) => i.value === props.modelValue)?.label ||
+    props.modelValue ||
+    props.placeholder ||
     "自动",
 );
 
@@ -53,10 +54,10 @@ function pick(v: string) {
         variant="outline"
         role="combobox"
         :aria-expanded="open"
-        :class="cn('justify-between font-normal', props.class)"
+        :class="cn('justify-between gap-1 px-2 font-normal has-[>svg]:px-2', props.class)"
       >
         <span class="truncate">{{ display }}</span>
-        <ChevronsUpDown class="size-4 shrink-0 opacity-50" />
+        <ChevronsUpDown class="size-3.5 shrink-0 opacity-50" />
       </Button>
     </PopoverTrigger>
     <PopoverContent class="w-64 p-0" align="start">

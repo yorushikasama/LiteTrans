@@ -44,18 +44,22 @@ function setMode(m: string) {
 
     <!-- 自定义方向:源 → 目标。宽度固定一个合理值并允许收缩:
          `w-full` 在 flex 行里会强制撑到父宽,配合 min-w-28 两个下拉就超出
-         容器(实测 900px 窗口下 499 > 371 横向溢出)。 -->
+         容器(实测 900px 窗口下 499 > 371 横向溢出)。
+         这一行每加宽一档都会把工具行挤折(折行后工具行 52px→102px,
+         正文区直接少 50px;150% 缩放下正文本来只有 245px)。
+         实测 533px 宽时可用区 353px:智能/自定义分段 108 + 间距 10 +
+         两枚下拉 2x96 + 箭头 14 ≈ 324,才放得下。 -->
     <div v-if="settings.transMode === 'custom'" class="flex min-w-0 items-center gap-2">
       <LanguageSelect
         v-model="settings.sourceLang"
         with-auto
-        class="w-32 min-w-0 sm:w-36"
+        class="w-24 min-w-0 md:w-32 lg:w-36"
         @update:model-value="emit('change')"
       />
       <ArrowRight class="size-3.5 shrink-0 text-muted-foreground" />
       <LanguageSelect
         v-model="settings.targetLang"
-        class="w-32 min-w-0 sm:w-36"
+        class="w-24 min-w-0 md:w-32 lg:w-36"
         @update:model-value="emit('change')"
       />
     </div>

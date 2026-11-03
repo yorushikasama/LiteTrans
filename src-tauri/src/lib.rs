@@ -27,7 +27,7 @@ mod tts_win;
 pub use tray::rebuild_tray;
 
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex, RwLock};
 
 use tauri::{AppHandle, Manager};
@@ -50,6 +50,12 @@ pub struct AppState {
     pub pending_popup_text: Mutex<Option<String>>,
     /// 首次创建弹卡时暂存的错误信息(OCR 无结果等)
     pub pending_popup_error: Mutex<Option<String>>,
+    /// 弹卡最近一次显示的时刻(毫秒时间戳,0 表示从未显示)。
+    /// 用来在显示后的极短时间内忽略系统补发的 Focused(false),
+    /// 否则弹卡会被自己的失焦回调瞬间隐藏。
+    pub popup_shown_at: AtomicU64,
+    /// 是否正在执行一次划词抓取(防止连按热键造成并发抢剪贴板)
+    pub capturing: AtomicBool,
     pub tts: SharedTts,
 }
 
@@ -98,6 +104,8 @@ pub fn run() {
                 settings: RwLock::new(settings),
                 cancels: Mutex::new(HashMap::new()),
                 pinned: AtomicBool::new(false),
+                popup_shown_at: AtomicU64::new(0),
+                capturing: AtomicBool::new(false),
                 pending_popup_text: Mutex::new(None),
                 pending_popup_error: Mutex::new(None),
                 tts: Arc::new(Mutex::new(None)),

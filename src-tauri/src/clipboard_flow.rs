@@ -1,9 +1,23 @@
+use std::sync::atomic::Ordering;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use tauri::{
     AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 
 use crate::input;
 use crate::AppState;
+
+/// 弹卡显示后多久之内的失焦事件不算"用户点了别处"。
+/// 需要覆盖"show → 系统补发一次 Focused(false)"这段窗口期。
+const SHOW_GRACE_MS: u128 = 350;
+
+fn now_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0)
+}
 
 /// 热键划词:模拟 Ctrl+C → 读剪贴板 → 光标附近弹卡
 pub async fn capture_selection(app: &AppHandle) -> Result<(), String> {
@@ -14,20 +28,53 @@ pub async fn capture_selection(app: &AppHandle) -> Result<(), String> {
         }
     }
 
-    let saved = input::save_clipboard();
-    input::press_ctrl_c()?;
+    // 单飞:等待目标应用写入剪贴板最多 3 秒,这期间用户很可能以为没反应
+    // 又按一次热键。两路并发会互相踩剪贴板(后一路的 save/restore 会覆盖
+    // 前一路刚拿到的文本),所以新的触发直接忽略。
+    {
+        let state = app.state::<AppState>();
+        if state.capturing.swap(true, Ordering::SeqCst) {
+            return Ok(());
+        }
+    }
+    let result = capture_selection_inner(app).await;
+    app.state::<AppState>()
+        .capturing
+        .store(false, Ordering::SeqCst);
+    result
+}
+
+async fn capture_selection_inner(app: &AppHandle) -> Result<(), String> {
+    // save_clipboard 会打开系统剪贴板并读内容,属于阻塞调用;
+    // press_ctrl_c 里还有"等物理修饰键松开"的等待。都放到阻塞线程池,
+    // 避免占住 tokio 工作线程(否则热键响应会被拖慢到数秒)。
+    let mut saved = tauri::async_runtime::spawn_blocking(input::save_clipboard)
+        .await
+        .map_err(|e| e.to_string())?;
+    // save_clipboard 里的 arboard 会打开剪贴板,可能自身推进序列号。
+    // 这里重新取一次基线,确保它反映的是"按下 Ctrl+C 之前"的真实状态,
+    // 否则会把本地那次打开误判成"目标应用已复制"。
+    saved.seq = input::clipboard_seq();
+    tauri::async_runtime::spawn_blocking(input::press_ctrl_c)
+        .await
+        .map_err(|e| e.to_string())??;
     // 必须等待剪贴板真的变化:不判断的话,模拟 Ctrl+C 未生效时会读到
-    // 用户上一次复制的旧内容,并把它当成"选中的文本"翻译,表现为译错内容
-    let changed = input::wait_clipboard_change(saved.seq, 400).await;
+    // 用户上一次复制的旧内容,并把它当成"选中的文本"翻译,表现为译错内容。
+    //
+    // 等待上限必须放得很宽。实测(本机,IDEA 打开一个 Java 文件、Ctrl+A 全选):
+    // 剪贴板在 Ctrl+C 之后 **1893ms** 才更新;原先的 400ms 必然超时,
+    // 用户看到的就是"明明选中了却说没取到文本"。浏览器里选中大段文字同理。
+    // wait_clipboard_change 一检测到变化就返回,放宽上限不增加正常路径的延迟。
+    let changed = input::wait_clipboard_change(saved.seq, 3000).await;
     let text = input::read_clipboard_text().unwrap_or_default();
     input::restore_clipboard_later(saved);
 
     if !changed {
-        return Err(
-            "没有取到新的选中文本:目标应用可能不支持模拟 Ctrl+C(某些终端、游戏),\
-             或当前其实没有选中文字。也可改用截图翻译(默认 Alt+X)。"
-                .into(),
-        );
+        return Err("没有取到新的选中文本。请确认:\n\
+             · 目标窗口里确实选中了文字(蓝色高亮)\n\
+             · 目标应用没把 Ctrl+C 改绑成别的功能(某些终端、游戏、看图软件)\n\
+             图片、PDF、视频字幕这类选不中的内容,请改用截图翻译(默认 Alt+X)。"
+            .into());
     }
     if text.trim().is_empty() {
         return Err("选中内容为空,请重新选中文字后再按热键".into());
@@ -89,6 +136,10 @@ async fn show_popup_payload(
     }
     win.set_position(PhysicalPosition::new(px as i32, py as i32))
         .map_err(|e| e.to_string())?;
+    // 先记录显示时刻再 show:窗口事件可能同步派发,写晚了会被当成"已经显示很久"
+    app.state::<AppState>()
+        .popup_shown_at
+        .store(now_ms() as u64, Ordering::Relaxed);
     win.show().map_err(|e| e.to_string())?;
     let _ = win.set_focus();
 
@@ -152,10 +203,24 @@ pub fn ensure_popup(app: &AppHandle) -> Result<WebviewWindow, String> {
                 .app_handle()
                 .state::<AppState>()
                 .pinned
-                .load(std::sync::atomic::Ordering::Relaxed);
-            if !pinned {
-                let _ = w.hide();
+                .load(Ordering::Relaxed);
+            if pinned {
+                return;
             }
+            // 刚 show() 出来的窗口会先收到一次 Focused(false)(窗口还没真正
+            // 拿到前台就报告失焦),此时直接 hide 会把弹卡瞬间隐形 ——
+            // 实测:Alt+Q 后剪贴板确实变了(seq 4531→4536)、窗口也建了,
+            // 但 IsWindowVisible 一直是 False,用户看到的就是"什么都没发生"。
+            // 所以显示后的 SHOW_GRACE_MS 内忽略失焦事件。
+            let shown_at = w
+                .app_handle()
+                .state::<AppState>()
+                .popup_shown_at
+                .load(Ordering::Relaxed);
+            if shown_at != 0 && now_ms().saturating_sub(shown_at as u128) < SHOW_GRACE_MS {
+                return;
+            }
+            let _ = w.hide();
         }
     });
     Ok(win)

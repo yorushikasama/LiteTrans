@@ -142,11 +142,6 @@
     background: color-mix(in oklab, var(--gong) 60%, transparent);
     color: var(--primary-foreground);
   }
-  /* 弹卡/框选窗口透明底,让系统亚克力与屏幕内容透出来 */
-  body[data-page="popup"],
-  body[data-page="capture"] {
-    background: transparent;
-  }
   /* 数字读数统一等宽,避免跳动 */
   .lt-num {
     font-family: var(--font-mono);
@@ -176,6 +171,20 @@
 }
 
 /* ── 弹卡 ── */
+/* 弹卡/框选窗口必须整页透明,系统的亚克力背景才能透出来。
+   这条规则**不能写在 @layer base 里**:同一个 layer 中 `body` 的
+   @apply bg-background 与它特异性相同(都是 body),后写的胜出与否取决于
+   顺序,而 Tailwind v4 会把 utilities 排在 base 之后 —— 实测 body 仍是
+   不透明的 rgb(246,246,246),表现为弹卡外面一圈白边。
+   所以放在 layer 之外并用 !important 顶掉 all:unset 之外的任何底色。
+   html 也要覆盖:窗口的透明底由根元素决定,只设 body 仍有白底。 */
+html:has(body[data-page="popup"]),
+html:has(body[data-page="capture"]),
+body[data-page="popup"],
+body[data-page="capture"] {
+  background: transparent !important;
+}
+
 /* 亚克力要靠半透明底透出来,直接用带 alpha 的构件色而非 bg-popover/92
    (v4 对 CSS 变量色叠透明度会走 color-mix,结果偏实) */
 .lt-card {

@@ -1,8 +1,8 @@
 // 截图翻译框选层:全屏遮罩 + 拖拽选框,纯 TS 无框架
 // 配色跟随五音主题:选框用宫色,尺寸读数用等宽字
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/api";
 import { listen } from "@tauri-apps/api/event";
-import "./assets/index.css";
+import "@/assets/index.css";
 
 const root = document.getElementById("capture")!;
 
@@ -81,16 +81,18 @@ window.addEventListener("mouseup", (e) => {
   sel.style.display = "none";
   sizeLabel.style.display = "none";
   hint.style.display = "none";
-  invoke("ocr_translate", {
-    x,
-    y,
-    w: Math.round(w * dpr),
-    h: Math.round(h * dpr),
-  }).catch(() => invoke("hide_capture"));
+  api
+    .ocrTranslate({
+      x,
+      y,
+      w: Math.round(w * dpr),
+      h: Math.round(h * dpr),
+    })
+    .catch(() => api.hideCapture());
 });
 
 window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") invoke("hide_capture");
+  if (e.key === "Escape") api.hideCapture();
 });
 
 listen("capture-reset", reset);

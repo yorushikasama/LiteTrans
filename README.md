@@ -39,31 +39,61 @@
 
 ## 项目结构
 
+前端按「入口 → 页面 → 组件/逻辑」四层切分,一处改动只落在一个层次里:
+
 ```
-├─ src/                    前端 (Vue 3 + TypeScript)
-│  ├─ App.vue              主窗口:翻译 / 历史 / 设置
-│  ├─ Popup.vue            划词弹卡
-│  ├─ components/          LanguageSelect / ModelCombobox / TranslateDirection
-│  ├─ components/ToneMark.vue   五音立标(顶栏,高亮当前调)
-│  ├─ components/ToneChip.vue   调式标签(单个宫/商/角/徵/羽)
-│  ├─ tones.ts             调式派生算法(与 Rust settings::tone_index 一致)
-│  ├─ components/ui/       shadcn-vue 组件源码(本地化,可自由修改)
-│  └─ assets/index.css     Tailwind v4 主题(深浅色跟随系统)
-├─ src-tauri/src/          Rust 后端
-│  ├─ lib.rs               应用组装、全局状态、热键注册
-│  ├─ tray.rs              托盘图标与菜单
-│  ├─ engine.rs            AI 引擎(三协议 SSE + 输出净化)
-│  ├─ clipboard_flow.rs    划词捕获 → 弹卡
-│  ├─ capture_flow.rs      截图框选窗口
-│  ├─ ocr.rs               GDI 抓屏 + Windows OCR
-│  ├─ settings.rs          配置持久化(含旧版迁移)+ 服务商预设
-│  ├─ history.rs           翻译历史(本地 JSON,50 条上限)
-│  ├─ lang.rs              语种识别与方向解析
-│  ├─ commands.rs          Tauri IPC 命令
-│  ├─ input.rs             按键模拟 / 光标 / 剪贴板
-│  └─ tts_win.rs           系统 TTS
-└─ scripts/                工具脚本(图标生成 / shadcn 组件拉取)
+src/
+├─ entries/            各窗口入口,只做挂载
+│  ├─ main.ts          主窗口
+│  ├─ popup.ts         划词弹卡
+│  └─ capture.ts       截图框选层(纯 TS,无框架)
+├─ views/             页面级组件,只管渲染与事件转发
+│  ├─ TranslateView.vue
+│  ├─ HistoryView.vue
+│  ├─ SettingsView.vue
+│  └─ PopupView.vue    弹卡整页(窗口小,不再拆子页面)
+├─ layout/SideBar.vue 主窗口侧栏
+├─ components/        可复用组件
+│  ├─ settings/       设置页的三块 section
+│  ├─ ToneMark.vue    五音立标(高亮当前调)
+│  ├─ ToneChip.vue    调式标签(单个宫/商/角/徵/羽)
+│  ├─ LanguageSelect.vue / ModelCombobox.vue / TranslateDirection.vue
+│  └─ ui/             shadcn-vue 组件源码(本地化,可自由修改)
+├─ composables/       页面逻辑(状态 + 请求),与视图一一对应
+│  ├─ useTranslate.ts 流式翻译、剪贴板、朗读、输入即译
+│  └─ useSettings.ts  设置与模型档案增删改查、连通性测试
+├─ theme/tones.ts     调式派生算法(与 Rust settings::tone_index 必须一致)
+├─ lib/               横切工具(errorBanner / devMock / cn)
+├─ api.ts             与 Rust 通信的唯一入口(全部命令的类型封装)
+├─ types.ts          共享类型与语言表
+└─ assets/index.css   Tailwind v4 主题(深浅色跟随系统)
 ```
+
+Rust 侧:
+
+```
+src-tauri/src/
+├─ lib.rs              应用组装、全局状态、热键注册
+├─ tray.rs             托盘图标与菜单
+├─ engine.rs           AI 引擎(三协议 SSE + 输出净化)
+├─ clipboard_flow.rs   划词捕获 → 弹卡
+├─ capture_flow.rs     截图框选窗口
+├─ ocr.rs              GDI 抓屏 + Windows OCR
+├─ settings.rs         配置持久化(含旧版迁移)+ 服务商预设
+├─ paths.rs            数据目录判定(便携版 vs 安装版)
+├─ history.rs          翻译历史(本地 JSON,50 条上限)
+├─ lang.rs             语种识别与方向解析
+├─ commands.rs         Tauri IPC 命令
+├─ input.rs            按键模拟 / 光标 / 剪贴板
+└─ tts_win.rs          系统 TTS
+```
+
+### 几条硬约定(由 `npm run lint:structure` 强制)
+
+1. **单文件 ≤ 450 行**。超过就该拆,而不是继续往里加。
+2. **前端不直接调用 `invoke`**。所有命令走 `src/api.ts`:
+   后端改名时 TypeScript 能立刻报错,而不是等运行时炸。
+3. **`views/` 与 `components/` 只放 `.vue`**。逻辑放 `composables/`。
 
 ## 开发
 
@@ -72,23 +102,36 @@ npm install        # 前端依赖
 npm run tauri dev  # 开发运行(首次编译 Rust 依赖较慢)
 ```
 
-浏览器直开 `http://localhost:1420` 也可以调 UI(DEV 模式自动 mock 后端数据)。
+浏览器直开 `http://localhost:1420` 调 UI 时,DEV 模式会自动 mock 后端数据,
+页面右下角会显示「浏览器调试」角标,标题带 `[调试]` 前缀 —— 看到它就说明
+译文不是真实模型输出。
 
 ## 测试与规范
 
 ```bash
-cd src-tauri
-cargo fmt --all        # 格式化
-cargo clippy -- -D warnings   # lint
-cargo test             # 单元测试
+npm run lint           # prettier + 类型 + 目录结构,一次跑完
+npm run check          # 上面这些 + Rust 单元测试
 ```
 
 ```bash
-npm run lint:format    # prettier 检查
-npm run format         # prettier 格式化
+cd src-tauri
+cargo fmt --all                # 格式化
+cargo clippy -- -D warnings    # lint
+cargo test                     # 单元测试
 ```
 
-提交前请确保 `cargo fmt/clippy/test` 与 `npm run build` 全部通过(CI 会检查)。
+布局审计(需要先 `npm run dev`):
+
+```bash
+npm run audit:ui       # 5 个窗口尺寸 × 3 个页面,查溢出/点击目标/文本截断
+npm run audit:popup    # 弹卡 420x330 专项
+```
+
+`audit:ui` 的第一个尺寸是 **533×400**,对应「800×600 窗口 + 150% 缩放」——
+那是本机真实的默认尺寸,比 `tauri.conf.json` 里的 `minWidth/minHeight` 还小,
+是最容易被忽略的一档。
+
+提交前请确保 `npm run check` 与 `npm run build` 全部通过。
 
 ## 构建
 

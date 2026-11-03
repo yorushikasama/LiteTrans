@@ -2,7 +2,7 @@
 // 调式标签:把一条配置的身份压成一个字(宫/商/角/徵/羽)。
 // 字本身是标签,颜色只是辅助,色盲用户也能靠字形区分。
 import { computed } from "vue";
-import { toneIndex, toneOf } from "@/tones";
+import { toneIndex, toneOf } from "@/theme/tones";
 
 const props = withDefaults(
   defineProps<{ id?: string; label?: string; filled?: boolean; mono?: boolean }>(),

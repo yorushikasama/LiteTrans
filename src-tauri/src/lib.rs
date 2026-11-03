@@ -56,6 +56,10 @@ pub struct AppState {
     pub popup_shown_at: AtomicU64,
     /// 是否正在执行一次划词抓取(防止连按热键造成并发抢剪贴板)
     pub capturing: AtomicBool,
+    /// 本次唤起后弹卡是否真的拿到过焦点。
+    /// 每次显示前清零:只有拿过焦点的弹卡,失焦才代表"用户点了别处";
+    /// 从未拿到焦点说明它还没被看见,此时失焦不能触发隐藏。
+    pub popup_had_focus: AtomicBool,
     pub tts: SharedTts,
 }
 
@@ -106,6 +110,7 @@ pub fn run() {
                 pinned: AtomicBool::new(false),
                 popup_shown_at: AtomicU64::new(0),
                 capturing: AtomicBool::new(false),
+                popup_had_focus: AtomicBool::new(false),
                 pending_popup_text: Mutex::new(None),
                 pending_popup_error: Mutex::new(None),
                 tts: Arc::new(Mutex::new(None)),

@@ -10,7 +10,12 @@
     "format": "prettier --write \"src/**/*.{ts,vue,css}\"",
     "lint:format": "prettier --check \"src/**/*.{ts,vue,css}\"",
     "lint:types": "vue-tsc --noEmit",
-    "audit:ui": "node scripts/ui-audit.mjs"
+    "lint:structure": "node scripts/check-structure.mjs",
+    "lint": "npm run lint:format && npm run lint:types && npm run lint:structure",
+    "audit:ui": "node scripts/ui-audit.mjs",
+    "audit:popup": "node scripts/popup-check.mjs",
+    "audit:corners": "node scripts/corner-alpha-check.mjs",
+    "check": "npm run lint && cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "dependencies": {
     "@lucide/vue": "^1.65.0",

@@ -2,7 +2,7 @@
 // 五音立标:五根竖弦,按宫商角徵羽着色,当前配置所属的「调」拔高发光。
 // 既是品牌标记,也是实时读数:一眼看出当前在用哪条配置。
 import { computed } from "vue";
-import { TONES, toneIndex } from "@/tones";
+import { TONES, toneIndex } from "@/theme/tones";
 
 const props = withDefaults(defineProps<{ id?: string; size?: "sm" | "md" | "lg" }>(), {
   size: "md",

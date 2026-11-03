@@ -186,9 +186,19 @@ body[data-page="capture"] {
 }
 
 /* 亚克力要靠半透明底透出来,直接用带 alpha 的构件色而非 bg-popover/92
-   (v4 对 CSS 变量色叠透明度会走 color-mix,结果偏实) */
+   (v4 对 CSS 变量色叠透明度会走 color-mix,结果偏实)。
+   模糊改由 backdrop-filter 在 CSS 侧完成 —— 见下方说明。 */
 .lt-card {
   background: color-mix(in oklab, var(--popover) 88%, transparent);
+  /* 窗口不再让系统铺亚克力(它会把圆角外的四个角一起涂上),
+     改由这里对卡片背后的桌面做模糊,毛玻璃观感保留、圆角干净。 */
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+  /* 圆角必须裁切:边框与背景都按这个圆角收边,
+     否则四个角会露出方形窗口的直角残影(实测角上残留 C8CACD)。 */
+  border-radius: 10px;
+  overflow: hidden;
+  isolation: isolate;
 }
 @media (prefers-color-scheme: dark) {
   .lt-card {

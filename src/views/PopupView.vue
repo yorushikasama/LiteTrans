@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { api } from "@/api";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "vue-sonner";
 import { Check, Copy, Maximize2, Pin, PinOff, RotateCcw, Volume2, X } from "@lucide/vue";
-import type { Profile, Settings, StreamMsg } from "./types";
-import { langLabel } from "./types";
-import { TONES, toneIndex } from "./tones";
+import type { Profile, StreamMsg } from "@/types";
+import { langLabel } from "@/types";
+import { TONES, toneIndex } from "@/theme/tones";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -61,8 +61,7 @@ async function start(text: string) {
   langInfo.value = "";
   dictMode.value = false;
   status.value = "loading";
-  const ch = new Channel<StreamMsg>();
-  ch.onmessage = (m) => {
+  const onEvent = (m: StreamMsg) => {
     switch (m.type) {
       case "start":
         dictMode.value = !!m.dict;
@@ -95,7 +94,7 @@ async function start(text: string) {
     }
   };
   try {
-    await invoke("translate", { text, source: "popup", onEvent: ch });
+    await api.translate(text, "popup", onEvent);
   } catch (e) {
     errorMsg.value = String(e);
     status.value = "error";
@@ -106,7 +105,7 @@ onMounted(async () => {
   window.addEventListener("keydown", onKeydown);
   // 跟随设置中的默认目标语言与配置档案
   try {
-    const s = await invoke<Settings>("get_settings");
+    const s = await api.getSettings();
     transMode.value = s.transMode || "auto";
     sourceLang.value = s.sourceLang || "auto";
     targetLang.value = s.targetLang || "Simplified Chinese";
@@ -118,8 +117,8 @@ onMounted(async () => {
     /* 保持默认 */
   }
   // 首次创建时页面加载较慢,由后端暂存文本,挂载后主动取
-  const pending = await invoke<string | null>("take_pending_text");
-  const pendingErr = await invoke<string | null>("take_pending_error");
+  const pending = await api.takePendingText();
+  const pendingErr = await api.takePendingError();
   if (pendingErr) {
     source.value = "";
     errorMsg.value = pendingErr;
@@ -140,35 +139,35 @@ onMounted(async () => {
 onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 
 function onKeydown(ev: KeyboardEvent) {
-  if (ev.key === "Escape") invoke("hide_popup");
+  if (ev.key === "Escape") api.hidePopup();
 }
 
 async function togglePin() {
-  pinned.value = await invoke<boolean>("toggle_pin");
+  pinned.value = await api.togglePin();
 }
 
 async function copy() {
   if (!result.value) return;
-  await invoke("write_clipboard", { text: result.value });
+  await api.writeClipboard(result.value);
   copied.value = true;
   setTimeout(() => (copied.value = false), 1200);
 }
 
 function speak() {
   const text = result.value || source.value;
-  if (text) invoke("tts_speak", { text });
+  if (text) api.ttsSpeak(text);
 }
 
 async function openMain() {
-  await invoke("open_main_with_text", { text: source.value });
-  await invoke("hide_popup");
+  await api.openMainWithText(source.value);
+  await api.hidePopup();
 }
 
 async function switchProfile() {
   if (!activeId.value) return;
   const prev = prevActiveId.value;
   try {
-    await invoke("set_active_profile", { id: activeId.value });
+    await api.setActiveProfile(activeId.value);
     prevActiveId.value = activeId.value;
     toast.success(`已切换到「${activeName.value}」`);
   } catch (e) {
@@ -178,8 +177,8 @@ async function switchProfile() {
 }
 
 async function openSettings() {
-  await invoke("open_main_settings");
-  await invoke("hide_popup");
+  await api.openMainSettings();
+  await api.hidePopup();
 }
 </script>
 
@@ -228,7 +227,7 @@ async function openSettings() {
         <Button variant="ghost" size="icon-xs" title="在主窗口中打开" @click="openMain">
           <Maximize2 />
         </Button>
-        <Button variant="ghost" size="icon-xs" title="关闭 (Esc)" @click="invoke('hide_popup')">
+        <Button variant="ghost" size="icon-xs" title="关闭 (Esc)" @click="api.hidePopup()">
           <X />
         </Button>
       </div>

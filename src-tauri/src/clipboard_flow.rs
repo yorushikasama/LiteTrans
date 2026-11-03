@@ -136,11 +136,19 @@ async fn show_popup_payload(
     }
     win.set_position(PhysicalPosition::new(px as i32, py as i32))
         .map_err(|e| e.to_string())?;
-    // 先记录显示时刻再 show:窗口事件可能同步派发,写晚了会被当成"已经显示很久"
-    app.state::<AppState>()
-        .popup_shown_at
-        .store(now_ms() as u64, Ordering::Relaxed);
+    // 先记录显示时刻再 show:窗口事件可能同步派发,写晚了会被当成"已经显示很久"。
+    // had_focus 一并清零 —— 新一轮唤起的失焦判断必须从"还没被看见"开始。
+    {
+        let state = app.state::<AppState>();
+        state
+            .popup_shown_at
+            .store(now_ms() as u64, Ordering::Relaxed);
+        state.popup_had_focus.store(false, Ordering::Relaxed);
+    }
     win.show().map_err(|e| e.to_string())?;
+    // 抢焦点:Windows 的前台锁定策略会让后台进程的 set_focus 静默失败。
+    // 失败时不强求 —— 弹卡仍然可见(always_on_top),只是用户点它之前
+    // 不会获得焦点;而失焦回调已用 popup_had_focus 保护,不会被误隐藏。
     let _ = win.set_focus();
 
     if existed {
@@ -181,13 +189,6 @@ pub fn ensure_popup(app: &AppHandle) -> Result<WebviewWindow, String> {
         .focused(true)
         .visible(false)
         .inner_size(420.0, 330.0)
-        .effects(tauri_utils::config::WindowEffectsConfig {
-            effects: vec![tauri::window::Effect::Acrylic],
-            state: Some(tauri::window::EffectState::Active),
-            radius: None,
-            color: None,
-            interactive: false,
-        })
         .build()
     {
         Ok(w) => w,
@@ -197,30 +198,42 @@ pub fn ensure_popup(app: &AppHandle) -> Result<WebviewWindow, String> {
 
     let w = win.clone();
     win.on_window_event(move |event| {
-        // 失焦自动隐藏(钉住时除外)
-        if let tauri::WindowEvent::Focused(false) = event {
-            let pinned = w
-                .app_handle()
-                .state::<AppState>()
-                .pinned
-                .load(Ordering::Relaxed);
-            if pinned {
-                return;
+        match event {
+            // 记录"确实拿到过焦点"。只有拿过焦点的弹卡,失焦才代表
+            // "用户点了别处";从未拿到焦点的弹卡失焦什么也不代表。
+            tauri::WindowEvent::Focused(true) => {
+                w.app_handle()
+                    .state::<AppState>()
+                    .popup_had_focus
+                    .store(true, Ordering::Relaxed);
             }
-            // 刚 show() 出来的窗口会先收到一次 Focused(false)(窗口还没真正
-            // 拿到前台就报告失焦),此时直接 hide 会把弹卡瞬间隐形 ——
-            // 实测:Alt+Q 后剪贴板确实变了(seq 4531→4536)、窗口也建了,
-            // 但 IsWindowVisible 一直是 False,用户看到的就是"什么都没发生"。
-            // 所以显示后的 SHOW_GRACE_MS 内忽略失焦事件。
-            let shown_at = w
-                .app_handle()
-                .state::<AppState>()
-                .popup_shown_at
-                .load(Ordering::Relaxed);
-            if shown_at != 0 && now_ms().saturating_sub(shown_at as u128) < SHOW_GRACE_MS {
-                return;
+            // 失焦自动隐藏(钉住时除外)
+            tauri::WindowEvent::Focused(false) => {
+                let pinned = w
+                    .app_handle()
+                    .state::<AppState>()
+                    .pinned
+                    .load(Ordering::Relaxed);
+                if pinned {
+                    return;
+                }
+                let state = w.app_handle().state::<AppState>();
+                // 从未获得过焦点:这次失焦只是"系统补发"或"焦点被别处拿走",
+                // 弹卡本身还没被用户看见,不能当成"用户点了别处"而隐藏。
+                // 实测:从 IDEA 按 Alt+Q,剪贴板已变(seq 4963→4979)、
+                // 窗口也建在正确位置,但 IsWindowVisible 始终是 False ——
+                // 用户看到的就是"弹卡不出来"。
+                if !state.popup_had_focus.load(Ordering::Relaxed) {
+                    return;
+                }
+                // 刚显示后的极短时间内也不信任失焦事件(见上一条注释)
+                let shown_at = state.popup_shown_at.load(Ordering::Relaxed);
+                if shown_at != 0 && now_ms().saturating_sub(shown_at as u128) < SHOW_GRACE_MS {
+                    return;
+                }
+                let _ = w.hide();
             }
-            let _ = w.hide();
+            _ => {}
         }
     });
     Ok(win)

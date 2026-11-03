@@ -7,6 +7,7 @@ import { Check, Copy, Maximize2, Pin, PinOff, RotateCcw, Volume2, X } from "@luc
 import type { Profile, StreamMsg } from "@/types";
 import { langLabel } from "@/types";
 import { TONES, toneIndex } from "@/theme/tones";
+import { resolvedTheme } from "@/lib/theme";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -188,13 +189,20 @@ async function openSettings() {
        会被看成"白边",在深色桌面上又像一圈脏边 —— 用户反馈的就是这个。
        现在取消外边距,阴影改由窗口自身承担,卡片只用细边框勾轮廓。 -->
   <div class="h-screen overflow-hidden">
-    <Toaster theme="system" position="top-center" />
+    <Toaster :theme="resolvedTheme" position="top-center" />
     <div
       :key="cardKey"
       class="lt-pop lt-card flex h-screen flex-col overflow-hidden rounded-[10px] border border-border/80"
     >
-      <!-- 顶条:调式 + 方向读数 + 操作 -->
-      <div class="flex h-8 shrink-0 items-center gap-1.5 border-b border-border/70 px-2">
+      <!-- 顶条:调式 + 方向读数 + 操作。
+           整条设为拖拽区(data-tauri-drag-region="deep"),否则这个无边框
+           窗口没有任何地方能拖动 —— 用户拖着卡片想挪位置时会发现纹丝不动。
+           右侧按钮不受影响:Tauri 的 drag.js 会跳过 BUTTON/INPUT 等可点击
+           元素,它们仍然正常响应点击。 -->
+      <div
+        data-tauri-drag-region="deep"
+        class="flex h-8 shrink-0 items-center gap-1.5 border-b border-border/70 px-2 select-none"
+      >
         <span
           class="grid size-[17px] shrink-0 place-items-center rounded-[3px] text-[10px] leading-none font-semibold"
           :style="{ background: tone.color, color: 'oklch(0.19 0.02 258)' }"
@@ -262,8 +270,13 @@ async function openSettings() {
         </div>
       </div>
 
-      <!-- 底条:复制 / 朗读 / 切换配置 -->
-      <div class="flex h-8 shrink-0 items-center gap-0.5 border-t border-border/70 px-1.5">
+      <!-- 底条:复制 / 朗读 / 切换配置。
+           同样设为拖拽区:顶条只有 32px,手指能抓的余量太小,底条中间
+           那片空白(两个按钮与右侧配置下拉之间)是第二处可拖的地方。 -->
+      <div
+        data-tauri-drag-region="deep"
+        class="flex h-8 shrink-0 items-center gap-0.5 border-t border-border/70 px-1.5 select-none"
+      >
         <Button variant="ghost" size="xs" :disabled="!result" @click="copy">
           <Check v-if="copied" class="text-jue-ink" />
           <Copy v-else />

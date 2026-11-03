@@ -8,7 +8,13 @@
 
    中性色刻意偏羽(冷),不按「温暖=传统」的默认做法铺米黄纸底;
    五色只承担语义状态与「调式」身份标识,不做装饰性渐变。
-   深浅色跟随系统,不注册 .dark 类变体。
+
+   主题三态(system/light/dark)由设置页控制。CSS 只认两种:
+   - 默认(:root)是浅色
+   - :root[data-theme="dark"] 是深色
+   "跟随系统"在前端解析(src/lib/theme.ts 读 matchMedia,再把 data-theme
+   写成 light 或 dark),所以色值只写一份。这样也不需要给 Tailwind 注册
+   .dark 变体,也不用改任何组件里的类名。
    ────────────────────────────────────────────────────────────── */
 
 :root {
@@ -46,38 +52,43 @@
   --ring: var(--gong-ink);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --gong: oklch(0.8 0.125 82);
-    --gong-ink: oklch(0.845 0.11 84);
-    --shang: oklch(0.34 0.01 258);
-    --shang-ink: oklch(0.78 0.008 258);
-    --jue: oklch(0.74 0.105 168);
-    --jue-ink: oklch(0.8 0.1 168);
-    --zhi: oklch(0.68 0.17 28);
-    --zhi-ink: oklch(0.73 0.16 28);
-    --yu: oklch(0.72 0.09 250);
-    --yu-ink: oklch(0.78 0.085 250);
+/* ── 深色 ──
+   只有两个入口::root 是浅色,:root[data-theme="dark"] 是深色。
+   "跟随系统"由前端解析(见 src/lib/theme.ts):它读 matchMedia 的结果,
+   再把 data-theme 设成 light 或 dark。这样色值只写一份 ——
+   之前用 @media 时,"跟随系统"和"强制深色"两组选择器都要重复整段变量,
+   改色必须改两处。
+   注意:默认(没有 data-theme)是浅色,所以 JS 未就绪时不会闪成深色。 */
+:root[data-theme="dark"] {
+  --gong: oklch(0.8 0.125 82);
+  --gong-ink: oklch(0.845 0.11 84);
+  --shang: oklch(0.34 0.01 258);
+  --shang-ink: oklch(0.78 0.008 258);
+  --jue: oklch(0.74 0.105 168);
+  --jue-ink: oklch(0.8 0.1 168);
+  --zhi: oklch(0.68 0.17 28);
+  --zhi-ink: oklch(0.73 0.16 28);
+  --yu: oklch(0.72 0.09 250);
+  --yu-ink: oklch(0.78 0.085 250);
 
-    --background: oklch(0.185 0.012 258);
-    --foreground: oklch(0.93 0.004 258);
-    --card: oklch(0.222 0.012 258);
-    --card-foreground: var(--foreground);
-    --popover: oklch(0.235 0.012 258);
-    --popover-foreground: var(--foreground);
-    --primary: var(--gong);
-    --primary-foreground: oklch(0.2 0.016 258);
-    --secondary: oklch(0.268 0.012 258);
-    --secondary-foreground: var(--foreground);
-    --muted: oklch(0.268 0.012 258);
-    --muted-foreground: oklch(0.795 0.01 258);
-    --accent: oklch(0.295 0.018 88);
-    --accent-foreground: oklch(0.93 0.004 258);
-    --destructive: var(--zhi-ink);
-    --border: oklch(1 0 0 / 11%);
-    --input: oklch(1 0 0 / 16%);
-    --ring: var(--gong);
-  }
+  --background: oklch(0.185 0.012 258);
+  --foreground: oklch(0.93 0.004 258);
+  --card: oklch(0.222 0.012 258);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.235 0.012 258);
+  --popover-foreground: var(--foreground);
+  --primary: var(--gong);
+  --primary-foreground: oklch(0.2 0.016 258);
+  --secondary: oklch(0.268 0.012 258);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.268 0.012 258);
+  --muted-foreground: oklch(0.795 0.01 258);
+  --accent: oklch(0.295 0.018 88);
+  --accent-foreground: oklch(0.93 0.004 258);
+  --destructive: var(--zhi-ink);
+  --border: oklch(1 0 0 / 11%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: var(--gong);
 }
 
 @theme inline {
@@ -200,10 +211,11 @@ body[data-page="capture"] {
   overflow: hidden;
   isolation: isolate;
 }
-@media (prefers-color-scheme: dark) {
-  .lt-card {
-    background: color-mix(in oklab, var(--popover) 82%, transparent);
-  }
+/* 深色下弹卡底色要更透一点,否则透视模糊几乎看不出来。
+   这里必须看 data-theme 而不是 @media:用户强制浅色时系统可能是深色,
+   反过来也一样 —— @media 会跟设置打架。 */
+:root[data-theme="dark"] .lt-card {
+  background: color-mix(in oklab, var(--popover) 82%, transparent);
 }
 
 /* shadcn 的 Textarea 默认 field-sizing-content(随内容长高),

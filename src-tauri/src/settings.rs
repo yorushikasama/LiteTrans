@@ -6,6 +6,40 @@ use serde::{Deserialize, Serialize};
 
 pub const KEYRING_SERVICE: &str = "LiteTrans";
 
+/// 界面主题。
+///
+/// 用独立的枚举而不是 String,是为了让"写错了"在编译期暴露。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    /// 跟随 Windows 的浅色/深色设置
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+/// 宽容反序列化:认不出来(拼错、类型不对、旧版本遗留值)一律退化成 system。
+///
+/// 必须宽容 —— `Settings::load` 里 `serde_json::from_str::<Settings>` 一旦失败
+/// 就整份回落到默认值,用户所有配置都会丢。一个主题字段写错不该有这个代价。
+impl<'de> Deserialize<'de> for Theme {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // 先收成 Value:值可能是字符串,也可能被手改成数字/bool,都不该炸
+        let Ok(v) = serde_json::Value::deserialize(d) else {
+            return Ok(Theme::System);
+        };
+        Ok(match v.as_str() {
+            Some("light") => Theme::Light,
+            Some("dark") => Theme::Dark,
+            _ => Theme::System,
+        })
+    }
+}
+
 /// 服务商预设:protocol 决定走哪种接口协议(openai / anthropic / gemini)
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -263,6 +297,8 @@ pub struct Settings {
     pub auto_translate: bool,
     /// 是否启用划词热键(临时停用开关)
     pub hotkey_enabled: bool,
+    /// 界面主题:system = 跟随系统;light = 始终浅色;dark = 始终深色
+    pub theme: Theme,
     /// 首次关窗到托盘的提示是否已展示
     pub tray_hint_shown: bool,
     pub setup_done: bool,
@@ -293,6 +329,7 @@ impl Default for Settings {
             auto_copy: true,
             auto_translate: false,
             hotkey_enabled: true,
+            theme: Theme::System,
             tray_hint_shown: false,
             setup_done: false,
             provider: String::new(),
@@ -521,6 +558,39 @@ mod tests {
         s.apply_legacy_direction(&raw);
         assert_eq!(s.trans_mode, "auto");
         assert_eq!(s.target_lang, "Simplified Chinese");
+    }
+
+    #[test]
+    fn theme_roundtrips_through_json() {
+        for (t, want) in [
+            (Theme::System, "system"),
+            (Theme::Light, "light"),
+            (Theme::Dark, "dark"),
+        ] {
+            let json = serde_json::to_string(&t).unwrap();
+            assert_eq!(json, format!("\"{want}\""));
+            assert_eq!(serde_json::from_str::<Theme>(&json).unwrap(), t);
+        }
+    }
+
+    /// 关键回归:主题字段写坏了不能带走整份配置。
+    /// 早先直接 derive 时,一个非法值会让 from_str::<Settings> 整体失败,
+    /// Settings::load 于是回落到默认值 —— 用户档案、热键全丢。
+    #[test]
+    fn bad_theme_value_does_not_wipe_settings() {
+        let raw = serde_json::json!({
+            "hotkey": "ctrl+shift+t",
+            "theme": "high-contrast",
+        });
+        let s: Settings = serde_json::from_value(raw).unwrap();
+        assert_eq!(s.hotkey, "ctrl+shift+t");
+        assert_eq!(s.theme, Theme::System);
+    }
+
+    #[test]
+    fn missing_theme_defaults_to_system() {
+        let s: Settings = serde_json::from_value(serde_json::json!({ "hotkey": "alt+q" })).unwrap();
+        assert_eq!(s.theme, Theme::System);
     }
 
     #[test]

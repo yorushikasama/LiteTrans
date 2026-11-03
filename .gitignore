@@ -4,5 +4,9 @@ src-tauri/target
 src-tauri/gen/schemas
 *.local
 
+# 图标生成脚本的中间产物(scripts/make-icon.ps1 每次运行会重写)
+# 正式图标在 src-tauri/icons/,那份才需要入库
+app-icon.png
+
 # 便携版打包的中间目录(保留 release/ 下的 zip 与安装包)
 release/LiteTrans_*_portable/

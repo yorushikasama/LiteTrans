@@ -16,6 +16,11 @@
 # ASCII-only on purpose: PowerShell 5.1 misparses UTF-8 scripts without BOM.
 Add-Type -AssemblyName System.Drawing
 
+# Resolve repo root from this script's own location so the script works no
+# matter where the repo is checked out (was hard-coded to D:\LiteTrans).
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$outPng = Join-Path $repoRoot 'app-icon.png'
+
 $size = 1024
 $bmp = New-Object System.Drawing.Bitmap($size, $size)
 $g = [System.Drawing.Graphics]::FromImage($bmp)
@@ -76,7 +81,7 @@ $boxA = New-Object System.Drawing.RectangleF(($aCx - $szA.Width / 2), ($aCy - $s
 $g.DrawString('A', $fontA, $inkBrush, $boxA, $fmt)
 
 $g.ResetClip()
-$bmp.Save('D:\LiteTrans\app-icon.png', [System.Drawing.Imaging.ImageFormat]::Png)
+$bmp.Save($outPng, [System.Drawing.Imaging.ImageFormat]::Png)
 $g.Dispose(); $plateBrush.Dispose(); $inkBrush.Dispose(); $plate.Dispose(); $bmp.Dispose()
 $fontWen.Dispose(); $fontA.Dispose(); $fmt.Dispose(); $fmtTight.Dispose()
-Write-Output "icon written: D:\LiteTrans\app-icon.png"
+Write-Output "icon written: $outPng"

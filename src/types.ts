@@ -19,6 +19,9 @@ export interface Preset {
 
 export type Protocol = "openai" | "anthropic" | "gemini";
 
+/** 界面主题三态:system = 跟随 Windows,light / dark = 强制 */
+export type Theme = "system" | "light" | "dark";
+
 export interface Profile {
   id: string;
   name: string;
@@ -71,6 +74,8 @@ export interface Settings {
   autoTranslate: boolean;
   /** 是否启用划词热键 */
   hotkeyEnabled: boolean;
+  /** 界面主题:system = 跟随系统;light / dark = 强制 */
+  theme: Theme;
   setupDone: boolean;
 }
 

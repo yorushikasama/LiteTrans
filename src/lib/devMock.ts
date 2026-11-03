@@ -5,6 +5,9 @@ export function installTauriMock(): boolean {
   const w = window as any;
   if (import.meta.env.PROD || w.__TAURI_INTERNALS__) return false;
 
+  /** 浏览器调试态的设置在 localStorage 里的键 */
+  const MOCK_KEY = "litetrans.mock.settings";
+
   const settings = {
     profiles: [
       {
@@ -29,9 +32,12 @@ export function installTauriMock(): boolean {
       },
     ],
     activeId: "p1",
-    transMode: "custom",
+    // 与 Rust Settings::default() 保持一致:智能模式(自动识别 → 中文)。
+    // 之前这里写的是 custom → English,截图里顶部选"英语"、译文却是中文,
+    // 属于自造的假矛盾。
+    transMode: "auto",
     sourceLang: "auto",
-    targetLang: "English",
+    targetLang: "Simplified Chinese",
     hotkey: "alt+q",
     captureHotkey: "alt+x",
     customPrompt: "",
@@ -39,8 +45,16 @@ export function installTauriMock(): boolean {
     autoCopy: true,
     autoTranslate: false,
     hotkeyEnabled: true,
+    theme: "system",
     setupDone: true,
   };
+  // 读回上次调试时改过的设置(主要是主题),这样刷新页面不会跳回浅色
+  try {
+    const saved = localStorage.getItem(MOCK_KEY);
+    if (saved) Object.assign(settings, JSON.parse(saved));
+  } catch {
+    /* 数据坏了就当没有,用默认 */
+  }
   const presets = [
     {
       id: "deepseek",
@@ -78,6 +92,17 @@ export function installTauriMock(): boolean {
         case "get_settings":
           return Promise.resolve(JSON.parse(JSON.stringify(settings)));
         case "save_settings":
+          // 真的把改动写回内存并落到 localStorage:否则改了主题、刷新一次
+          // 就退回原值,调试时会误以为"设置没生效"。
+          // (只存 mock 数据,不含真实 Key)
+          if (args?.settings) {
+            Object.assign(settings, args.settings);
+            try {
+              localStorage.setItem(MOCK_KEY, JSON.stringify(settings));
+            } catch {
+              /* 隐私模式下可能不可写,忽略 */
+            }
+          }
           return Promise.resolve(null);
         case "set_active_profile":
           return Promise.resolve(null);
@@ -133,8 +158,8 @@ export function installTauriMock(): boolean {
   /**
    * 模拟 Channel 流式消息(仅浏览器调试用)
    *
-   * 译文由传入的原文派生,不再固定返回一段与输入无关的兜底文本 ——
-   * 否则调试时无论选了什么,看到的都是同一段假数据,极易误判成逻辑故障。
+   * 译文由传入的原文派生,并明确标注是调试生成的 —— 不预置任何"看起来像
+   * 真译文"的假数据,从根上避免把调试产物当成真实输出。
    *
    * Channel 实例的 id 就是 transformCallback 返回的回调,消息形状是
    * { index, message };index 必须连续递增,否则会被当作乱序消息排队。
@@ -143,13 +168,21 @@ export function installTauriMock(): boolean {
     const send = typeof onEvent === "function" ? onEvent : onEvent?.id;
     if (typeof send !== "function") return;
     const src = (text ?? "").trim();
+    // 方向必须跟着设置走:写死 "Simplified Chinese" 时,界面顶部选的是英语、
+    // 读数条却显示"→ 中文",一眼就是矛盾的假数据
+    const target = settings.transMode === "custom" ? settings.targetLang : "Simplified Chinese";
     const out = src
       ? `[浏览器调试] 这段译文由 mock 生成,不是真实模型输出。原文:${src}`
       : "[浏览器调试] 没有收到原文,请确认输入框里有内容。";
     const chars = Array.from(out);
     let index = 0;
     const emit = (message: unknown) => send({ index: index++, message });
-    emit({ type: "start", detected: "English", target: "Simplified Chinese", dict: false });
+    emit({
+      type: "start",
+      detected: "English",
+      target,
+      dict: false,
+    });
     let i = 0;
     const t = setInterval(() => {
       const next = chars.slice(i, i + 2).join("");

@@ -9,6 +9,7 @@ import { onMounted, ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "vue-sonner";
 import { api } from "@/api";
+import { resolvedTheme } from "@/lib/theme";
 import { toneMode } from "@/theme/tones";
 import type { HistoryItem, RuntimeInfo } from "@/types";
 import { useSettings } from "@/composables/useSettings";
@@ -107,7 +108,9 @@ onMounted(async () => {
 
 <template>
   <div class="h-screen">
-    <Toaster theme="system" position="top-center" />
+    <!-- theme 跟着实际生效的深浅走:Sonner 默认看 matchMedia,
+         用户强制浅色/深色时会跟界面反着来 -->
+    <Toaster :theme="resolvedTheme" position="top-center" />
 
     <Tabs v-model="tab" class="flex h-full flex-row gap-0">
       <SideBar

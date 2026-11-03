@@ -5,9 +5,10 @@
  * 编辑必须操作副本,保存时才合并回 settings.profiles,否则用户点开编辑
  * 随手改一个字、再点取消,原配置就被污染了。
  */
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { toast } from "vue-sonner";
 import { api } from "@/api";
+import { useTheme } from "@/lib/theme";
 import { genId, PROTOCOLS } from "@/types";
 import type { Preset, Profile, Settings } from "@/types";
 
@@ -39,6 +40,15 @@ export function useSettings() {
 
   const confirmDelete = ref(false);
   const deleteTarget = ref<Profile | null>(null);
+
+  // 主题:设置一加载就套上,之后改一次生效一次(不重启)
+  watch(
+    () => settings.value?.theme,
+    (theme) => {
+      if (theme) useTheme(theme);
+    },
+    { immediate: true },
+  );
 
   const activeProfile = computed<Profile | null>(() => {
     const s = settings.value;

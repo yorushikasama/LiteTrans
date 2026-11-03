@@ -15,6 +15,12 @@
     "audit:ui": "node scripts/ui-audit.mjs",
     "audit:popup": "node scripts/popup-check.mjs",
     "audit:corners": "node scripts/corner-alpha-check.mjs",
+    "audit:theme": "node scripts/theme-check.mjs",
+    "shots": "node scripts/make-screenshots.mjs",
+    "measure:startup": "node scripts/measure-startup.mjs",
+    "icon": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-icon.ps1",
+    "ui:add": "node scripts/add-shadcn.mjs",
+    "release:portable": "bash scripts/make-portable.sh",
     "check": "npm run lint && cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "dependencies": {

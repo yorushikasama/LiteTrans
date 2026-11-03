@@ -4,7 +4,9 @@
 
 基于 Tauri 2 + Rust + WebView2:安装包约 3MB,托盘常驻内存约 40-80MB。
 
-前端 UI 为 shadcn-vue(组件源码进仓库,基于 reka-ui 无头组件)+ Tailwind CSS v4 + Lucide 图标,深浅色跟随系统。组件已本地化,可自由修改 `src/components/ui/` 下任意实现。
+前端 UI 为 shadcn-vue(组件源码进仓库,基于 reka-ui 无头组件)+ Tailwind CSS v4 + Lucide 图标,深浅色三态可选(跟随系统 / 浅色 / 深色)。组件已本地化,可自由修改 `src/components/ui/` 下任意实现。
+
+![翻译主窗口](docs/screenshots/main-translate.png)
 
 ## 主题:宫商角徵羽
 
@@ -23,6 +25,20 @@
 **调式身份**:每条模型配置按 id 派生一个「调」(宫调/商调/角调/徵调/羽调),设置列表、历史记录、翻译弹卡与托盘菜单显示同一个字,所以任何地方看到「商」都知道在用哪条配置。取模算法在 Rust(`settings::tone_index`)与 TS(`src/tones.ts`)两侧一致,各有一个断言测试锁住。
 
 所有颜色 token 在 `src/assets/index.css`,用 OKLCH;深色模式的次要文字对比度 ≥4.5:1(有脚本核算过)。
+
+### 深浅色
+
+设置 → 通用设置 → 界面主题,三档:**跟随系统 / 浅色 / 深色**,写进配置,切换即时生效。
+
+实现上 CSS 只有两个入口(`:root` 浅色、`:root[data-theme="dark"]` 深色),"跟随系统"由 `src/lib/theme.ts` 读 `matchMedia` 后解析成具体的一档再写 `data-theme`。这样深色 token 只写一份 —— 若用 `@media` 分流,"跟随系统"和"强制深色"两套选择器就得各抄一整段色值,以后改色必漏一处。
+
+![深色翻译窗口](docs/screenshots/main-translate-dark.png)
+
+弹卡同样是透明的圆角卡片,内部用 CSS `backdrop-filter` 做毛玻璃:
+
+| 弹卡(浅色) | 弹卡(深色) |
+|---|---|
+| ![弹卡浅色](docs/screenshots/popup.png) | ![弹卡深色](docs/screenshots/popup-dark.png) |
 
 ## 功能
 
@@ -63,10 +79,10 @@ src/
 │  ├─ useTranslate.ts 流式翻译、剪贴板、朗读、输入即译
 │  └─ useSettings.ts  设置与模型档案增删改查、连通性测试
 ├─ theme/tones.ts     调式派生算法(与 Rust settings::tone_index 必须一致)
-├─ lib/               横切工具(errorBanner / devMock / cn)
+├─ lib/               横切工具(errorBanner / devMock / theme / cn)
 ├─ api.ts             与 Rust 通信的唯一入口(全部命令的类型封装)
 ├─ types.ts          共享类型与语言表
-└─ assets/index.css   Tailwind v4 主题(深浅色跟随系统)
+└─ assets/index.css   Tailwind v4 主题 token(浅色 / 深色两套)
 ```
 
 Rust 侧:
@@ -125,6 +141,8 @@ cargo test                     # 单元测试
 ```bash
 npm run audit:ui       # 5 个窗口尺寸 × 3 个页面,查溢出/点击目标/文本截断
 npm run audit:popup    # 弹卡 420x330 专项
+npm run audit:corners  # 弹卡四角透明度(逐像素读 alpha,验证没被方形窗口填上)
+npm run audit:theme    # 主题三态 × 系统深浅 的 4 种组合,读实测像素亮度
 ```
 
 `audit:ui` 的第一个尺寸是 **533×400**,对应「800×600 窗口 + 150% 缩放」——
@@ -132,6 +150,19 @@ npm run audit:popup    # 弹卡 420x330 专项
 是最容易被忽略的一档。
 
 提交前请确保 `npm run check` 与 `npm run build` 全部通过。
+
+## 其他脚本
+
+```bash
+npm run measure:startup   # 测 release 版启动耗时(需先带调试端口启动应用)
+npm run icon              # 重绘应用图标 → app-icon.png
+npm run ui:add -- badge   # 从 shadcn-vue 注册表拉取组件源码
+npm run release:portable  # 打便携版 zip
+```
+
+`ui/components/ui/` 下只保留实际用到的组件。暂未使用的 badge / card /
+dropdown-menu / label / separator / tooltip 已移除,需要时用 `npm run ui:add`
+重新拉取即可 —— 少一批不参与构建的源码,搜索和阅读都清爽得多。
 
 ## 构建
 

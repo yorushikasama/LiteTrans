@@ -136,20 +136,15 @@ async fn show_popup_payload(
     }
     win.set_position(PhysicalPosition::new(px as i32, py as i32))
         .map_err(|e| e.to_string())?;
-    // 先记录显示时刻再 show:窗口事件可能同步派发,写晚了会被当成"已经显示很久"。
-    // had_focus 一并清零 —— 新一轮唤起的失焦判断必须从"还没被看见"开始。
-    {
-        let state = app.state::<AppState>();
-        state
-            .popup_shown_at
-            .store(now_ms() as u64, Ordering::Relaxed);
-        state.popup_had_focus.store(false, Ordering::Relaxed);
-    }
+    // 先记录显示时刻再 show:窗口事件可能同步派发,写晚了会被当成"已经显示很久"
+    app.state::<AppState>()
+        .popup_shown_at
+        .store(now_ms() as u64, Ordering::Relaxed);
     win.show().map_err(|e| e.to_string())?;
     // 抢焦点:Windows 的前台锁定策略会让后台进程的 set_focus 静默失败。
-    // 失败时不强求 —— 弹卡仍然可见(always_on_top),只是用户点它之前
-    // 不会获得焦点;而失焦回调已用 popup_had_focus 保护,不会被误隐藏。
+    // 失败也不强求 —— 弹卡始终可见,并且下面挂了"点外部即隐藏"的兜底监视。
     let _ = win.set_focus();
+    spawn_outside_click_watcher(app, win.clone());
 
     if existed {
         // 弹卡页面已就绪,直接发事件
@@ -198,43 +193,91 @@ pub fn ensure_popup(app: &AppHandle) -> Result<WebviewWindow, String> {
 
     let w = win.clone();
     win.on_window_event(move |event| {
-        match event {
-            // 记录"确实拿到过焦点"。只有拿过焦点的弹卡,失焦才代表
-            // "用户点了别处";从未拿到焦点的弹卡失焦什么也不代表。
-            tauri::WindowEvent::Focused(true) => {
-                w.app_handle()
-                    .state::<AppState>()
-                    .popup_had_focus
-                    .store(true, Ordering::Relaxed);
+        // 只需要关心失焦:点窗口外 = 弹卡失去焦点 = 隐藏。
+        // 点窗口本体不会让弹卡失焦,所以什么也不会发生 —— 这正是要的行为。
+        if let tauri::WindowEvent::Focused(false) = event {
+            let state = w.app_handle().state::<AppState>();
+            if state.pinned.load(Ordering::Relaxed) {
+                return;
             }
-            // 失焦自动隐藏(钉住时除外)
-            tauri::WindowEvent::Focused(false) => {
-                let pinned = w
-                    .app_handle()
-                    .state::<AppState>()
-                    .pinned
-                    .load(Ordering::Relaxed);
-                if pinned {
-                    return;
-                }
-                let state = w.app_handle().state::<AppState>();
-                // 从未获得过焦点:这次失焦只是"系统补发"或"焦点被别处拿走",
-                // 弹卡本身还没被用户看见,不能当成"用户点了别处"而隐藏。
-                // 实测:从 IDEA 按 Alt+Q,剪贴板已变(seq 4963→4979)、
-                // 窗口也建在正确位置,但 IsWindowVisible 始终是 False ——
-                // 用户看到的就是"弹卡不出来"。
-                if !state.popup_had_focus.load(Ordering::Relaxed) {
-                    return;
-                }
-                // 刚显示后的极短时间内也不信任失焦事件(见上一条注释)
-                let shown_at = state.popup_shown_at.load(Ordering::Relaxed);
-                if shown_at != 0 && now_ms().saturating_sub(shown_at as u128) < SHOW_GRACE_MS {
-                    return;
-                }
-                let _ = w.hide();
+            // 刚显示后的一小段时间内忽略失焦:窗口还没真正进入屏幕时,
+            // 系统会补发一次 Focused(false),照做会把弹卡瞬间藏起来
+            // (实测 Alt+Q 后剪贴板变了、窗口也建了,但 IsWindowVisible
+            // 一直是 False,用户看到的就是"弹卡不出来")。
+            let shown_at = state.popup_shown_at.load(Ordering::Relaxed);
+            if shown_at != 0 && now_ms().saturating_sub(shown_at as u128) < SHOW_GRACE_MS {
+                return;
             }
-            _ => {}
+            let _ = w.hide();
         }
     });
     Ok(win)
+}
+
+/// 弹卡显示期间盯着鼠标:在窗口**外面**按下就隐藏,在窗口里面按下什么都不做。
+///
+/// 为什么不能只靠失焦事件:Windows 的前台锁定策略会让后台进程的 set_focus
+/// 静默失败。此时弹卡以 always_on_top 显示出来,却从未拥有焦点 ——
+/// 用户点窗口外,系统不会产生任何 Focused(false),弹卡就赖着不走。
+/// 这个轮询补上那条路径,同时保证"点窗口本体不触发消失"。
+pub fn spawn_outside_click_watcher(app: &AppHandle, win: WebviewWindow) {
+    let app = app.clone();
+    let generation = app
+        .state::<AppState>()
+        .popup_watch_gen
+        .fetch_add(1, Ordering::SeqCst)
+        + 1;
+
+    tauri::async_runtime::spawn(async move {
+        // 等一小会儿再开始:热键过后用户可能还在按着鼠标,别把旧按键当新点击
+        tokio::time::sleep(std::time::Duration::from_millis(SHOW_GRACE_MS as u64)).await;
+
+        loop {
+            // 每次唤起都会起一个新的 watcher;旧的发现代号变了就自行退出,
+            // 否则连续按热键会让多个 watcher 同时盯着同一个窗口。
+            if app
+                .state::<AppState>()
+                .popup_watch_gen
+                .load(Ordering::SeqCst)
+                != generation
+            {
+                break;
+            }
+            // 弹卡不可见(或已销毁)就结束监视,下次唤起会重新起一个
+            if !win.is_visible().unwrap_or(false) {
+                break;
+            }
+            if app.state::<AppState>().pinned.load(Ordering::Relaxed) {
+                break;
+            }
+
+            if input::mouse_button_down() {
+                let (cx, cy) = input::cursor_pos();
+                if !cursor_inside(&win, cx, cy) {
+                    let _ = win.hide();
+                    break;
+                }
+                // 在窗口内部按下:等这一次点击结束,避免拖拽/连点期间反复判断。
+                // 拖动窗口时鼠标会一路移出边界,但按键还没松开,这段等待
+                // 保证拖动过程不会被误判成"点了外面"。
+                while input::mouse_button_down() {
+                    tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(40)).await;
+        }
+    });
+}
+
+/// 光标是否落在窗口的可见矩形内(用外框,含边框与圆角外的极小误差)
+fn cursor_inside(win: &WebviewWindow, x: i32, y: i32) -> bool {
+    let Ok(pos) = win.outer_position() else {
+        return false;
+    };
+    let Ok(size) = win.outer_size() else {
+        return false;
+    };
+    let (l, t) = (pos.x, pos.y);
+    let (r, b) = (l + size.width as i32, t + size.height as i32);
+    x >= l && x < r && y >= t && y < b
 }

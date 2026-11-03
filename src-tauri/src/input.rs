@@ -8,7 +8,8 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::System::DataExchange::GetClipboardSequenceNumber;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
-    KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, VK_LWIN, VK_MENU, VK_RWIN, VK_SHIFT,
+    KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, VK_LBUTTON, VK_LWIN, VK_MENU, VK_RBUTTON, VK_RWIN,
+    VK_SHIFT,
 };
 use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
@@ -112,6 +113,17 @@ fn modifier_still_down() -> bool {
         // 最高位为 1 表示当前按下
         unsafe { (GetAsyncKeyState(vk.0 as i32) as u16) & 0x8000 != 0 }
     })
+}
+
+/// 鼠标左键或右键此刻是否被按下。
+///
+/// 弹卡要"点窗口外就消失",但不能只依赖窗口失焦事件:Windows 的前台锁定
+/// 会让后台进程的 set_focus 静默失败,弹卡可能从头到尾都没拿到过焦点,
+/// 那样点外部根本不会产生 Focused(false)。这里轮询物理按键状态做兜底。
+pub fn mouse_button_down() -> bool {
+    let keys = [VK_LBUTTON, VK_RBUTTON];
+    keys.iter()
+        .any(|&vk| unsafe { (GetAsyncKeyState(vk.0 as i32) as u16) & 0x8000 != 0 })
 }
 
 /// 当前系统剪贴板序列号

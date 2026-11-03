@@ -56,10 +56,9 @@ pub struct AppState {
     pub popup_shown_at: AtomicU64,
     /// 是否正在执行一次划词抓取(防止连按热键造成并发抢剪贴板)
     pub capturing: AtomicBool,
-    /// 本次唤起后弹卡是否真的拿到过焦点。
-    /// 每次显示前清零:只有拿过焦点的弹卡,失焦才代表"用户点了别处";
-    /// 从未拿到焦点说明它还没被看见,此时失焦不能触发隐藏。
-    pub popup_had_focus: AtomicBool,
+    /// 弹卡"点外部即隐藏"监视器的代号。每唤起重置一次,
+    /// 旧监视器发现代号变了就自行退出,避免重复唤起时 watcher 堆积。
+    pub popup_watch_gen: AtomicU64,
     pub tts: SharedTts,
 }
 
@@ -110,7 +109,7 @@ pub fn run() {
                 pinned: AtomicBool::new(false),
                 popup_shown_at: AtomicU64::new(0),
                 capturing: AtomicBool::new(false),
-                popup_had_focus: AtomicBool::new(false),
+                popup_watch_gen: AtomicU64::new(0),
                 pending_popup_text: Mutex::new(None),
                 pending_popup_error: Mutex::new(None),
                 tts: Arc::new(Mutex::new(None)),

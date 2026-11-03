@@ -1,19 +1,36 @@
 <script setup lang="ts">
-/** 通用设置区:热键、开关、默认方向、附加提示词。 */
-import type { Settings } from "@/types";
+/** 通用设置区:主题、热键、开关、默认方向、附加提示词。 */
+import type { Settings, Theme } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import TranslateDirection from "@/components/TranslateDirection.vue";
 
-defineProps<{ settings: Settings; saveErr: string }>();
+const props = defineProps<{ settings: Settings; saveErr: string }>();
 
 const emit = defineEmits<{
   (e: "save"): void;
   /** 单个开关改动后立即静默保存 */
   (e: "autosave"): void;
 }>();
+
+const THEME_OPTIONS: { value: Theme; label: string }[] = [
+  { value: "system", label: "跟随系统" },
+  { value: "light", label: "浅色" },
+  { value: "dark", label: "深色" },
+];
+
+/**
+ * 主题不用 v-model 直连,而是走这个函数:
+ * 赋值立刻触发 useSettings 里的 watch → 界面当场换色,
+ * 再补一次静默保存,用户不用点"保存设置"。
+ */
+function setTheme(theme: Theme) {
+  if (props.settings.theme === theme) return;
+  props.settings.theme = theme;
+  emit("autosave");
+}
 </script>
 
 <template>
@@ -21,6 +38,31 @@ const emit = defineEmits<{
     <h2 class="text-[13px] font-medium">通用设置</h2>
 
     <div class="mt-1 divide-y divide-border/60">
+      <div class="flex items-center justify-between gap-4 py-2.5">
+        <div class="min-w-0">
+          <div class="text-[13px]">界面主题</div>
+          <div class="text-[11.5px] text-muted-foreground">
+            「跟随系统」会随 Windows 的浅色/深色设置自动切换
+          </div>
+        </div>
+        <div class="inline-flex shrink-0 items-center gap-0.5 rounded-md border p-0.5">
+          <button
+            v-for="opt in THEME_OPTIONS"
+            :key="opt.value"
+            class="rounded-[4px] px-2.5 py-1 text-[12px] leading-5 transition-colors"
+            :class="
+              settings.theme === opt.value
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            "
+            :aria-pressed="settings.theme === opt.value"
+            @click="setTheme(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+      </div>
+
       <div class="flex items-center justify-between gap-4 py-2.5">
         <div class="min-w-0">
           <div class="text-[13px]">划词热键</div>
